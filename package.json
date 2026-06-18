@@ -4,7 +4,7 @@
   "main": "index.js",
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
-    "@gorhom/bottom-sheet": "^5.2.14",
+    "@gorhom/bottom-sheet": "^4.6.4",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/slider": "5.2.0",
     "@react-navigation/bottom-tabs": "^7.18.2",
@@ -37,7 +37,9 @@
   "private": true,
   "expo": {
     "install": {
-      "exclude": ["react-native-reanimated"]
+      "exclude": [
+        "react-native-reanimated"
+      ]
     }
   }
 }
