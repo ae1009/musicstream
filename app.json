@@ -29,7 +29,7 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-sqlite"],
+    "plugins": ["./plugins/withRNTPGradleFix", "expo-sqlite"],
     "owner": "ae100977",
     "extra": {
       "eas": {
