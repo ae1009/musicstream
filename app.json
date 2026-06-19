@@ -29,7 +29,15 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["./plugins/withRNTPGradleFix", "expo-sqlite"],
+    "plugins": [
+      "./plugins/withRNTPGradleFix",
+      ["expo-build-properties", {
+        "android": {
+          "newArchEnabled": false
+        }
+      }],
+      "expo-sqlite"
+    ],
     "owner": "ae100977",
     "extra": {
       "eas": {
