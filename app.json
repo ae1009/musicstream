@@ -30,11 +30,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      ["expo-build-properties", {
-        "android": {
-          "newArchEnabled": false
-        }
-      }],
+      "./plugins/withDisableNewArch",
       "expo-sqlite"
     ],
     "owner": "ae100977",
