@@ -30,7 +30,6 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "./plugins/withRNTPGradleFix",
       ["expo-build-properties", {
         "android": {
           "newArchEnabled": false
