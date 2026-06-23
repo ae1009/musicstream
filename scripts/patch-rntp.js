@@ -1,8 +1,24 @@
-const { withDangerousMod } = require('@expo/config-plugins');
+#!/usr/bin/env node
+// Patches react-native-track-player's android/build.gradle for Gradle 9 + RN 0.85.x compatibility.
+// Idempotent: safe to run multiple times.
 const fs = require('fs');
 const path = require('path');
 
-const FIXED_BUILD_GRADLE = `apply plugin: 'com.android.library'
+const buildGradlePath = path.join(
+  __dirname,
+  '..',
+  'node_modules',
+  'react-native-track-player',
+  'android',
+  'build.gradle'
+);
+
+if (!fs.existsSync(buildGradlePath)) {
+  console.log('[patch-rntp] RNTP build.gradle not found, skipping');
+  process.exit(0);
+}
+
+const DESIRED_CONTENT = `apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 
 def getExtOrIntegerDefault(name) {
@@ -29,13 +45,6 @@ android {
     }
 }
 
-repositories {
-    mavenLocal()
-    mavenCentral()
-    google()
-    maven { url 'https://www.jitpack.io' }
-}
-
 dependencies {
     implementation 'com.github.doublesymmetry:kotlinaudio:v2.1.0'
 
@@ -49,28 +58,12 @@ dependencies {
 }
 `;
 
-const withRNTPGradleFix = (config) => {
-  return withDangerousMod(config, [
-    'android',
-    async (config) => {
-      const buildGradlePath = path.join(
-        config.modRequest.projectRoot,
-        'node_modules',
-        'react-native-track-player',
-        'android',
-        'build.gradle'
-      );
+const current = fs.readFileSync(buildGradlePath, 'utf8');
 
-      if (!fs.existsSync(buildGradlePath)) {
-        console.warn('[withRNTPGradleFix] RNTP build.gradle not found, skipping');
-        return config;
-      }
+if (current === DESIRED_CONTENT) {
+  console.log('[patch-rntp] Already patched, skipping');
+  process.exit(0);
+}
 
-      fs.writeFileSync(buildGradlePath, FIXED_BUILD_GRADLE, 'utf8');
-      console.log('[withRNTPGradleFix] Patched RNTP android/build.gradle for Gradle 9 compatibility');
-      return config;
-    },
-  ]);
-};
-
-module.exports = withRNTPGradleFix;
+fs.writeFileSync(buildGradlePath, DESIRED_CONTENT, 'utf8');
+console.log('[patch-rntp] Patched RNTP android/build.gradle for Gradle 9 + RN 0.85 compatibility');

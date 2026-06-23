@@ -31,7 +31,15 @@
     },
     "plugins": [
       "./plugins/withDisableNewArch",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraMavenRepos": ["https://www.jitpack.io"]
+          }
+        }
+      ]
     ],
     "owner": "ae100977",
     "extra": {
