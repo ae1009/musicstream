@@ -1,24 +1,20 @@
 #!/usr/bin/env node
-// Patches react-native-track-player's android/build.gradle for Gradle 9 + RN 0.85.x compatibility.
+// Patches react-native-track-player for Gradle 9 + RN 0.85.x compatibility.
 // Idempotent: safe to run multiple times.
 const fs = require('fs');
 const path = require('path');
 
-const buildGradlePath = path.join(
-  __dirname,
-  '..',
-  'node_modules',
-  'react-native-track-player',
-  'android',
-  'build.gradle'
-);
+const rntpAndroid = path.join(__dirname, '..', 'node_modules', 'react-native-track-player', 'android');
+
+// ─── Patch 1: build.gradle ───────────────────────────────────────────────────
+const buildGradlePath = path.join(rntpAndroid, 'build.gradle');
 
 if (!fs.existsSync(buildGradlePath)) {
-  console.log('[patch-rntp] RNTP build.gradle not found, skipping');
+  console.log('[patch-rntp] RNTP not found, skipping');
   process.exit(0);
 }
 
-const DESIRED_CONTENT = `apply plugin: 'com.android.library'
+const DESIRED_GRADLE = `apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 
 def getExtOrIntegerDefault(name) {
@@ -58,12 +54,47 @@ dependencies {
 }
 `;
 
-const current = fs.readFileSync(buildGradlePath, 'utf8');
-
-if (current === DESIRED_CONTENT) {
-  console.log('[patch-rntp] Already patched, skipping');
-  process.exit(0);
+const currentGradle = fs.readFileSync(buildGradlePath, 'utf8');
+if (currentGradle !== DESIRED_GRADLE) {
+  fs.writeFileSync(buildGradlePath, DESIRED_GRADLE, 'utf8');
+  console.log('[patch-rntp] Patched build.gradle for Gradle 9 + RN 0.85 compatibility');
+} else {
+  console.log('[patch-rntp] build.gradle already patched');
 }
 
-fs.writeFileSync(buildGradlePath, DESIRED_CONTENT, 'utf8');
-console.log('[patch-rntp] Patched RNTP android/build.gradle for Gradle 9 + RN 0.85 compatibility');
+// ─── Patch 2: MusicModule.kt — fix Bundle? → Bundle for RN 0.85.3 ──────────
+// Arguments.fromBundle() now requires non-nullable Bundle in RN 0.85.3.
+// Two call sites in RNTP 4.1.2 pass Bundle? (nullable), causing compile errors.
+const musicModulePath = path.join(
+  rntpAndroid,
+  'src', 'main', 'java', 'com', 'doublesymmetry', 'trackplayer', 'module', 'MusicModule.kt'
+);
+
+if (fs.existsSync(musicModulePath)) {
+  let kt = fs.readFileSync(musicModulePath, 'utf8');
+  let changed = false;
+
+  // Fix line ~548: getTrack — pass non-null Bundle to Arguments.fromBundle
+  const old548 = 'callback.resolve(Arguments.fromBundle(musicService.tracks[index].originalItem))';
+  const new548 = 'callback.resolve(Arguments.fromBundle(musicService.tracks[index].originalItem ?: Bundle()))';
+  if (kt.includes(old548)) {
+    kt = kt.replace(old548, new548);
+    changed = true;
+  }
+
+  // Fix line ~587-589: getActiveTrack — same issue (use regex for robustness)
+  const re588 = /Arguments\.fromBundle\(\s*[\r\n]+(\s*)(musicService\.tracks\[musicService\.getCurrentTrackIndex\(\)\]\.originalItem)\s*[\r\n]+(\s*)\)/;
+  if (re588.test(kt) && !kt.match(/getCurrentTrackIndex\(\)\]\.originalItem \?: Bundle\(\)/)) {
+    kt = kt.replace(re588, (m, indent, expr, closingIndent) =>
+      `Arguments.fromBundle(\n${indent}${expr} ?: Bundle()\n${closingIndent})`
+    );
+    changed = true;
+  }
+
+  if (changed) {
+    fs.writeFileSync(musicModulePath, kt, 'utf8');
+    console.log('[patch-rntp] Patched MusicModule.kt for RN 0.85.3 Bundle nullability');
+  } else {
+    console.log('[patch-rntp] MusicModule.kt already patched or pattern not found');
+  }
+}
