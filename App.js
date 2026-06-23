@@ -28,8 +28,16 @@ export default function App() {
 
   useEffect(() => {
     const init = async () => {
-      await setupPlayer();
-      await loadLibrary();
+      try {
+        await setupPlayer();
+      } catch (e) {
+        // TrackPlayer ya inicializado — ignorar
+      }
+      try {
+        await loadLibrary();
+      } catch (e) {
+        // Continuar sin datos previos si SQLite falla
+      }
       setReady(true);
     };
     init();
