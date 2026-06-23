@@ -3,17 +3,12 @@ import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
-import TrackPlayer, {
-  useTrackPlayerEvents,
-  Event,
-  State,
-} from 'react-native-track-player';
 import { setupPlayer } from './src/services/audio/trackPlayer';
 import { RootNavigator } from './src/navigation/RootNavigator';
-import { usePlayerStore } from './src/stores/playerStore';
 import { useLibraryStore } from './src/stores/libraryStore';
 import { usePlayerEvents } from './src/hooks/usePlayer';
 import { colors } from './src/constants/theme';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 // Servicio de playback — requerido por react-native-track-player
 // Este archivo se registra en index.js
@@ -52,6 +47,7 @@ export default function App() {
   }
 
   return (
+    <ErrorBoundary>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <NavigationContainer
         theme={{
@@ -71,5 +67,6 @@ export default function App() {
         <StatusBar style="light" />
       </NavigationContainer>
     </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }
