@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ae100977.musicstream",
@@ -17,7 +17,7 @@
       "package": "com.ae100977.musicstream",
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundColor": "#121212"
+        "backgroundColor": "#4CAF50"
       },
       "permissions": [
         "android.permission.INTERNET",

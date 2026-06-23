@@ -30,5 +30,5 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   title: { color: colors.text, fontSize: fontSizes.lg, fontWeight: '700' },
-  link: { color: colors.textSecondary, fontSize: fontSizes.sm },
+  link: { color: colors.primary, fontSize: fontSizes.sm, fontWeight: '600' },
 });
