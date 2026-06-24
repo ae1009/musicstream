@@ -1,11 +1,15 @@
 import { create } from 'zustand';
-import TrackPlayer, { State } from 'react-native-track-player';
+import { AVPlaybackStatus } from 'expo-av';
 import { QueueItem, RepeatMode } from '../types/player';
-import { playItem, setRepeatMode } from '../services/audio/trackPlayer';
+import {
+  loadAndPlay, pauseAudio, resumeAudio, seekAudio, setAudioRate, stopAudio,
+} from '../services/audio/audioPlayer';
+import { addToHistory } from '../services/storage/database';
 
 interface PlayerStore {
   currentItem: QueueItem | null;
   queue: QueueItem[];
+  queueIndex: number;
   isPlaying: boolean;
   isBuffering: boolean;
   position: number;
@@ -14,7 +18,6 @@ interface PlayerStore {
   repeatMode: RepeatMode;
   shuffleMode: boolean;
 
-  // Acciones
   play: (item: QueueItem, queue?: QueueItem[]) => Promise<void>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
@@ -22,16 +25,16 @@ interface PlayerStore {
   previous: () => Promise<void>;
   seekTo: (seconds: number) => Promise<void>;
   setRate: (rate: number) => Promise<void>;
-  setRepeat: (mode: RepeatMode) => Promise<void>;
+  setRepeat: (mode: RepeatMode) => void;
   toggleShuffle: () => void;
-  addToQueue: (item: QueueItem) => Promise<void>;
-  // Sincronización desde eventos RNTP
-  _sync: (patch: Partial<PlayerStore>) => void;
+  addToQueue: (item: QueueItem) => void;
+  _onStatus: (status: AVPlaybackStatus) => void;
 }
 
 export const usePlayerStore = create<PlayerStore>((set, get) => ({
   currentItem: null,
   queue: [],
+  queueIndex: 0,
   isPlaying: false,
   isBuffering: false,
   position: 0,
@@ -42,61 +45,71 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
 
   play: async (item, queue = []) => {
     const fullQueue = queue.length > 0 ? queue : [item];
-    await playItem(item, fullQueue);
-    set({ currentItem: item, queue: fullQueue, isPlaying: true });
+    const idx = fullQueue.findIndex((t) => t.id === item.id);
+    set({ currentItem: item, queue: fullQueue, queueIndex: idx < 0 ? 0 : idx, isPlaying: true });
+    await loadAndPlay(item.stream_url, get()._onStatus);
+    addToHistory({ content_id: item.id, type: 'track', title: item.title, artist: item.artist, artwork_url: item.artwork_url, source: item.source }).catch(() => {});
   },
 
   pause: async () => {
-    await TrackPlayer.pause();
+    await pauseAudio();
     set({ isPlaying: false });
   },
 
   resume: async () => {
-    await TrackPlayer.play();
+    await resumeAudio();
     set({ isPlaying: true });
   },
 
   next: async () => {
-    await TrackPlayer.skipToNext();
+    const { queue, queueIndex, repeatMode } = get();
+    if (queue.length === 0) return;
+    let nextIdx = queueIndex + 1;
+    if (nextIdx >= queue.length) {
+      if (repeatMode === 'queue') nextIdx = 0;
+      else { await stopAudio(); set({ isPlaying: false }); return; }
+    }
+    const nextItem = queue[nextIdx];
+    set({ currentItem: nextItem, queueIndex: nextIdx, isPlaying: true });
+    await loadAndPlay(nextItem.stream_url, get()._onStatus);
   },
 
   previous: async () => {
-    const { position } = get();
-    if (position > 3) {
-      await TrackPlayer.seekTo(0);
-    } else {
-      await TrackPlayer.skipToPrevious();
-    }
+    const { queue, queueIndex, position } = get();
+    if (position > 3) { await seekAudio(0); return; }
+    const prevIdx = Math.max(0, queueIndex - 1);
+    const prevItem = queue[prevIdx];
+    if (!prevItem) return;
+    set({ currentItem: prevItem, queueIndex: prevIdx, isPlaying: true });
+    await loadAndPlay(prevItem.stream_url, get()._onStatus);
   },
 
   seekTo: async (seconds) => {
-    await TrackPlayer.seekTo(seconds);
+    await seekAudio(seconds * 1000);
     set({ position: seconds });
   },
 
   setRate: async (rate) => {
-    await TrackPlayer.setRate(rate);
+    await setAudioRate(rate);
     set({ playbackRate: rate });
   },
 
-  setRepeat: async (mode) => {
-    await setRepeatMode(mode);
-    set({ repeatMode: mode });
-  },
-
+  setRepeat: (mode) => set({ repeatMode: mode }),
   toggleShuffle: () => set((s) => ({ shuffleMode: !s.shuffleMode })),
+  addToQueue: (item) => set((s) => ({ queue: [...s.queue, item] })),
 
-  addToQueue: async (item) => {
-    await TrackPlayer.add([{
-      id: item.id,
-      url: item.stream_url,
-      title: item.title,
-      artist: item.artist,
-      artwork: item.artwork_url,
-      duration: item.duration_s,
-    }]);
-    set((s) => ({ queue: [...s.queue, item] }));
+  _onStatus: (status) => {
+    if (!status.isLoaded) return;
+    const positionSec = (status.positionMillis ?? 0) / 1000;
+    const durationSec = (status.durationMillis ?? 0) / 1000;
+    set({
+      isPlaying: status.isPlaying,
+      isBuffering: status.isBuffering,
+      position: positionSec,
+      duration: durationSec,
+    });
+    if (status.didJustFinish) {
+      get().next();
+    }
   },
-
-  _sync: (patch) => set(patch as any),
 }));

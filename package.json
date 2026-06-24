@@ -12,6 +12,7 @@
     "axios": "^1.18.0",
     "babel-preset-expo": "~56.0.0",
     "expo": "~56.0.12",
+    "expo-av": "~15.0.2",
     "expo-build-properties": "^56.0.19",
     "expo-file-system": "^56.0.8",
     "expo-font": "~56.0.7",
@@ -23,7 +24,6 @@
     "react-native-paper": "^5.15.3",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "^4.25.2",
-    "react-native-track-player": "^4.1.2",
     "zustand": "^5.0.14"
   },
   "scripts": {

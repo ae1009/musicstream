@@ -3,19 +3,11 @@ import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
-import { setupPlayer } from './src/services/audio/trackPlayer';
+import { setupAudio } from './src/services/audio/audioPlayer';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { useLibraryStore } from './src/stores/libraryStore';
-import { usePlayerEvents } from './src/hooks/usePlayer';
 import { colors } from './src/constants/theme';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
-
-// Servicio de playback — requerido por react-native-track-player
-// Este archivo se registra en index.js
-function PlayerSync() {
-  usePlayerEvents();
-  return null;
-}
 
 export default function App() {
   const [ready, setReady] = useState(false);
@@ -23,16 +15,8 @@ export default function App() {
 
   useEffect(() => {
     const init = async () => {
-      try {
-        await setupPlayer();
-      } catch (e) {
-        // TrackPlayer ya inicializado — ignorar
-      }
-      try {
-        await loadLibrary();
-      } catch (e) {
-        // Continuar sin datos previos si SQLite falla
-      }
+      try { await setupAudio(); } catch (_) {}
+      try { await loadLibrary(); } catch (_) {}
       setReady(true);
     };
     init();
@@ -48,25 +32,24 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <NavigationContainer
-        theme={{
-          dark: true,
-          colors: {
-            primary: colors.primary,
-            background: colors.background,
-            card: colors.surface,
-            text: colors.text,
-            border: colors.border,
-            notification: colors.primary,
-          },
-        }}
-      >
-        <PlayerSync />
-        <RootNavigator />
-        <StatusBar style="light" />
-      </NavigationContainer>
-    </GestureHandlerRootView>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <NavigationContainer
+          theme={{
+            dark: false,
+            colors: {
+              primary: colors.primary,
+              background: colors.background,
+              card: colors.surface,
+              text: colors.text,
+              border: colors.border,
+              notification: colors.primary,
+            },
+          }}
+        >
+          <RootNavigator />
+          <StatusBar style="dark" />
+        </NavigationContainer>
+      </GestureHandlerRootView>
     </ErrorBoundary>
   );
 }

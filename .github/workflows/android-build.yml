@@ -29,44 +29,13 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install dependencies (runs patch-rntp.js postinstall)
+      - name: Install dependencies
         run: npm install --legacy-peer-deps
-
-      - name: Verify RNTP patch was applied
-        run: |
-          if grep -q "buildscript" node_modules/react-native-track-player/android/build.gradle; then
-            echo "ERROR: RNTP patch was NOT applied - buildscript block still present"
-            cat node_modules/react-native-track-player/android/build.gradle
-            exit 1
-          else
-            echo "RNTP patch verified: no buildscript block found"
-          fi
 
       - name: Expo Prebuild (Android)
         run: npx expo prebuild --platform android --no-install
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-
-      - name: Verify MusicService in AndroidManifest
-        run: |
-          if grep -q "MusicService" android/app/src/main/AndroidManifest.xml; then
-            echo "✓ MusicService found in AndroidManifest.xml"
-            grep -A3 "MusicService" android/app/src/main/AndroidManifest.xml
-          else
-            echo "✗ ERROR: MusicService NOT in AndroidManifest.xml — app will crash at runtime"
-            cat android/app/src/main/AndroidManifest.xml
-            exit 1
-          fi
-
-      - name: Verify gradle.properties has JitPack
-        run: |
-          if grep -q "jitpack" android/gradle.properties 2>/dev/null; then
-            echo "JitPack found in gradle.properties"
-          else
-            echo "WARNING: JitPack not in gradle.properties - adding manually"
-            echo "" >> android/gradle.properties
-            echo "android.extraMavenRepos=[{\"url\":\"https://www.jitpack.io\"}]" >> android/gradle.properties
-          fi
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
