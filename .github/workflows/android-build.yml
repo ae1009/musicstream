@@ -47,6 +47,17 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
+      - name: Verify MusicService in AndroidManifest
+        run: |
+          if grep -q "MusicService" android/app/src/main/AndroidManifest.xml; then
+            echo "✓ MusicService found in AndroidManifest.xml"
+            grep -A3 "MusicService" android/app/src/main/AndroidManifest.xml
+          else
+            echo "✗ ERROR: MusicService NOT in AndroidManifest.xml — app will crash at runtime"
+            cat android/app/src/main/AndroidManifest.xml
+            exit 1
+          fi
+
       - name: Verify gradle.properties has JitPack
         run: |
           if grep -q "jitpack" android/gradle.properties 2>/dev/null; then
