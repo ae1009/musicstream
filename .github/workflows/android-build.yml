@@ -32,15 +32,17 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Verify expo-av patch
+      - name: Verify expo-av patch (if installed)
         run: |
-          VER=$(node -e "console.log(require('./node_modules/expo-av/package.json').version)")
-          echo "expo-av version: $VER"
-          if grep -q "resolveView" node_modules/expo-av/android/src/main/java/expo/modules/av/ViewUtils.kt 2>/dev/null; then
+          VIEWUTILS="node_modules/expo-av/android/src/main/java/expo/modules/av/ViewUtils.kt"
+          if [ ! -f "node_modules/expo-av/package.json" ]; then
+            echo "expo-av not installed, skipping patch check"
+          elif grep -q "resolveView" "$VIEWUTILS" 2>/dev/null; then
             echo "ERROR: ViewUtils.kt still has resolveView after patch"
             exit 1
           else
-            echo "expo-av patch OK"
+            VER=$(node -e "console.log(require('./node_modules/expo-av/package.json').version)")
+            echo "expo-av $VER patch OK"
           fi
 
       - name: Expo Prebuild (Android)
