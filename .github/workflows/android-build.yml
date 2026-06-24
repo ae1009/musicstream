@@ -32,10 +32,70 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Verify expo-av patch
+        run: |
+          VER=$(node -e "console.log(require('./node_modules/expo-av/package.json').version)")
+          echo "expo-av version: $VER"
+          if grep -q "resolveView" node_modules/expo-av/android/src/main/java/expo/modules/av/ViewUtils.kt 2>/dev/null; then
+            echo "ERROR: ViewUtils.kt still has resolveView after patch"
+            exit 1
+          else
+            echo "expo-av patch OK"
+          fi
+
       - name: Expo Prebuild (Android)
         run: npx expo prebuild --platform android --no-install
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install release keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/musicstream-release.keystore
+          echo "Keystore installed: $(wc -c < android/app/musicstream-release.keystore) bytes"
+
+      - name: Configure release signing
+        run: |
+          cat >> android/gradle.properties << 'EOF'
+          MYAPP_UPLOAD_STORE_FILE=musicstream-release.keystore
+          MYAPP_UPLOAD_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
+          MYAPP_UPLOAD_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
+          MYAPP_UPLOAD_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
+          EOF
+
+      - name: Patch build.gradle for release signing
+        run: |
+          python3 - <<'PYEOF'
+          with open('android/app/build.gradle', 'r') as f:
+              content = f.read()
+
+          signing_config = '''
+              signingConfigs {
+                  release {
+                      if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+                          storeFile file(MYAPP_UPLOAD_STORE_FILE)
+                          storePassword MYAPP_UPLOAD_STORE_PASSWORD
+                          keyAlias MYAPP_UPLOAD_KEY_ALIAS
+                          keyPassword MYAPP_UPLOAD_KEY_PASSWORD
+                      }
+                  }
+              }
+          '''
+
+          if 'signingConfigs' not in content:
+              content = content.replace('    buildTypes {', signing_config + '    buildTypes {', 1)
+
+          if 'signingConfig signingConfigs.release' not in content:
+              content = content.replace(
+                  'release {',
+                  'release {\n            signingConfig signingConfigs.release',
+                  1
+              )
+
+          with open('android/app/build.gradle', 'w') as f:
+              f.write(content)
+
+          print("build.gradle patched for release signing")
+          PYEOF
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
