@@ -48,92 +48,10 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Install release keystore
+      - name: Replace debug.keystore with consistent signing key
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/musicstream-release.keystore
-          echo "Keystore installed: $(wc -c < android/app/musicstream-release.keystore) bytes"
-
-      - name: Add signing properties to gradle.properties
-        run: |
-          cat >> android/gradle.properties << EOF
-          MYAPP_UPLOAD_STORE_FILE=musicstream-release.keystore
-          MYAPP_UPLOAD_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
-          MYAPP_UPLOAD_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
-          MYAPP_UPLOAD_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
-          EOF
-
-      - name: Patch build.gradle for release signing
-        run: |
-          python3 - << 'PYEOF'
-          with open('android/app/build.gradle', 'r') as f:
-              content = f.read()
-
-          if 'MYAPP_UPLOAD_STORE_FILE' in content:
-              print("Already patched")
-              exit(0)
-
-          release_cfg = """        release {
-                  if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
-                      storeFile file(MYAPP_UPLOAD_STORE_FILE)
-                      storePassword MYAPP_UPLOAD_STORE_PASSWORD
-                      keyAlias MYAPP_UPLOAD_KEY_ALIAS
-                      keyPassword MYAPP_UPLOAD_KEY_PASSWORD
-                  }
-              }
-          """
-
-          # Insert release signing config into existing signingConfigs block (or create one)
-          sc_pos = content.find('    signingConfigs {')
-          if sc_pos >= 0:
-              depth, sc_end = 0, -1
-              for i in range(sc_pos, len(content)):
-                  if content[i] == '{': depth += 1
-                  elif content[i] == '}':
-                      depth -= 1
-                      if depth == 0:
-                          sc_end = i
-                          break
-              content = content[:sc_end] + '    ' + release_cfg + content[sc_end:]
-          else:
-              content = content.replace(
-                  '    buildTypes {',
-                  '    signingConfigs {\n    ' + release_cfg + '    }\n    buildTypes {',
-                  1
-              )
-
-          # Wire buildTypes.release to signingConfigs.release
-          # Find buildTypes FIRST, then find release AFTER that position
-          # (so we skip signingConfigs.release and target buildTypes.release)
-          bt_pos = content.find('    buildTypes {')
-          if bt_pos >= 0:
-              rel_pos = content.find('        release {', bt_pos)
-              if rel_pos >= 0:
-                  depth, rel_end = 0, -1
-                  for i in range(rel_pos, len(content)):
-                      if content[i] == '{': depth += 1
-                      elif content[i] == '}':
-                          depth -= 1
-                          if depth == 0:
-                              rel_end = i
-                              break
-                  block = content[rel_pos:rel_end + 1]
-                  if 'signingConfig signingConfigs.debug' in block:
-                      block = block.replace(
-                          'signingConfig signingConfigs.debug',
-                          'signingConfig signingConfigs.release',
-                          1
-                      )
-                  elif 'signingConfig signingConfigs.release' not in block:
-                      ins = block.find('\n') + 1
-                      block = (block[:ins] +
-                               '            signingConfig signingConfigs.release\n' +
-                               block[ins:])
-                  content = content[:rel_pos] + block + content[rel_end + 1:]
-
-          with open('android/app/build.gradle', 'w') as f:
-              f.write(content)
-          print("build.gradle patched for release signing")
-          PYEOF
+          echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > android/app/debug.keystore
+          echo "Keystore installed ($(wc -c < android/app/debug.keystore) bytes)"
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
