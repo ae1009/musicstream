@@ -6,42 +6,14 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.ae100977.musicstream",
-      "infoPlist": {
-        "UIBackgroundModes": ["audio", "fetch"]
-      }
-    },
     "android": {
-      "package": "com.ae100977.musicstream",
+      "package": "com.ae100977.musicstreamnew",
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#4CAF50"
       },
-      "permissions": [
-        "android.permission.INTERNET"
-      ]
+      "permissions": ["android.permission.INTERNET"]
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      "expo-sqlite",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "extraMavenRepos": ["https://www.jitpack.io"]
-          }
-        }
-      ]
-    ],
-    "owner": "ae100977",
-    "extra": {
-      "eas": {
-        "projectId": "701cc444-cd08-4a4f-b52f-6740228242e8"
-      }
-    }
+    "owner": "ae100977"
   }
 }
