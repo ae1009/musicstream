@@ -27,7 +27,6 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "./plugins/withDisableNewArch",
       "expo-sqlite",
       [
         "expo-build-properties",
