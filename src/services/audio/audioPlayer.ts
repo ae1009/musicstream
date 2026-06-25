@@ -1,52 +1,72 @@
-import { Audio, AVPlaybackStatus } from 'expo-av';
+import { setAudioModeAsync, createAudioPlayer, AudioPlayer } from 'expo-audio';
 
-let sound: Audio.Sound | null = null;
-let statusCallback: ((s: AVPlaybackStatus) => void) | null = null;
+let player: AudioPlayer | null = null;
+let statusSub: ReturnType<AudioPlayer['addListener']> | null = null;
 
 export async function setupAudio(): Promise<void> {
-  await Audio.setAudioModeAsync({
-    allowsRecordingIOS: false,
-    staysActiveInBackground: true,
+  await setAudioModeAsync({
     playsInSilentModeIOS: true,
+    staysActiveInBackground: true,
     shouldDuckAndroid: true,
     playThroughEarpieceAndroid: false,
-  });
+  } as any);
 }
 
 export async function loadAndPlay(
   url: string,
-  onStatus: (s: AVPlaybackStatus) => void
+  onStatus: (s: any) => void,
 ): Promise<void> {
-  if (sound) {
-    await sound.unloadAsync().catch(() => {});
-    sound = null;
+  if (player) {
+    statusSub?.remove();
+    player.remove();
+    player = null;
   }
-  statusCallback = onStatus;
-  sound = new Audio.Sound();
-  sound.setOnPlaybackStatusUpdate(onStatus);
-  await sound.loadAsync({ uri: url }, { shouldPlay: true });
+
+  player = createAudioPlayer({ uri: url });
+
+  statusSub = player.addListener('playbackStatusUpdate', (status: any) => {
+    const pos = status.currentTime ?? status.positionMillis ?? 0;
+    const dur = status.duration ?? status.durationMillis ?? 0;
+    // expo-audio reports in seconds; normalise to ms for the store
+    const posMs = pos > 1000 ? pos : pos * 1000;
+    const durMs = dur > 1000 ? dur : dur * 1000;
+
+    onStatus({
+      isLoaded: true,
+      isPlaying: status.playing ?? status.isPlaying ?? false,
+      isBuffering: status.buffering ?? status.isBuffering ?? false,
+      positionMillis: posMs,
+      durationMillis: durMs,
+      didJustFinish: status.ended ?? status.didJustFinish ?? false,
+    });
+  });
+
+  player.play();
 }
 
 export async function pauseAudio(): Promise<void> {
-  await sound?.pauseAsync();
+  player?.pause();
 }
 
 export async function resumeAudio(): Promise<void> {
-  await sound?.playAsync();
+  player?.play();
 }
 
 export async function seekAudio(positionMs: number): Promise<void> {
-  await sound?.setPositionAsync(positionMs);
+  if (!player) return;
+  player.seekTo(positionMs / 1000);
 }
 
 export async function setAudioRate(rate: number): Promise<void> {
-  await sound?.setRateAsync(rate, true);
+  if (!player) return;
+  (player as any).rate = rate;
 }
 
 export async function stopAudio(): Promise<void> {
-  if (sound) {
-    await sound.stopAsync().catch(() => {});
-    await sound.unloadAsync().catch(() => {});
-    sound = null;
+  if (player) {
+    statusSub?.remove();
+    statusSub = null;
+    player.remove();
+    player = null;
   }
 }

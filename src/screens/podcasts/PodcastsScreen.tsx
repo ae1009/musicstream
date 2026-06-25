@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, ActivityIndicator,
   StyleSheet, SafeAreaView, RefreshControl,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from '../../navigation/context';
 import { Podcast } from '../../types/podcast';
 import { PodcastCard } from '../../components/podcast/PodcastCard';
 import { SectionHeader } from '../../components/shared/SectionHeader';

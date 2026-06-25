@@ -1,34 +1,10 @@
-import client from './client';
-import { ENDPOINTS } from '../../constants/api';
 import { Podcast, Episode } from '../../types/podcast';
 
+// Podcast Index / EC2 backend not yet deployed — stubs return empty arrays
 export const podcastsApi = {
-  getTrending: async (limit = 20, category?: string): Promise<Podcast[]> => {
-    const { data } = await client.get(ENDPOINTS.podcasts.trending, {
-      params: { limit, ...(category ? { category } : {}) },
-    });
-    return data;
-  },
-
-  getCategories: async (): Promise<{ id: string; name: string }[]> => {
-    const { data } = await client.get(ENDPOINTS.podcasts.categories);
-    return data;
-  },
-
-  search: async (q: string, limit = 20): Promise<Podcast[]> => {
-    const { data } = await client.get(ENDPOINTS.podcasts.search, { params: { q, limit } });
-    return data;
-  },
-
-  getPodcast: async (feedId: string): Promise<Podcast> => {
-    const { data } = await client.get(ENDPOINTS.podcasts.detail(feedId));
-    return data;
-  },
-
-  getEpisodes: async (feedId: string, limit = 30, page = 0): Promise<Episode[]> => {
-    const { data } = await client.get(ENDPOINTS.podcasts.episodes(feedId), {
-      params: { limit, page },
-    });
-    return data;
-  },
+  getTrending: async (_limit = 20, _category?: string): Promise<Podcast[]> => [],
+  getCategories: async (): Promise<{ id: string; name: string }[]> => [],
+  search: async (_q: string, _limit = 20): Promise<Podcast[]> => [],
+  getPodcast: async (_feedId: string): Promise<Podcast> => { throw new Error('Backend not available yet'); },
+  getEpisodes: async (_feedId: string, _limit = 30, _page = 0): Promise<Episode[]> => [],
 };

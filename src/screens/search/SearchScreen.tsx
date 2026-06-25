@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, FlatList, TouchableOpacity,
   ActivityIndicator, StyleSheet, SafeAreaView, Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from '../../navigation/context';
 import { Ionicons } from '@expo/vector-icons';
 import { TrackRow } from '../../components/music/TrackRow';
 import { PodcastCard } from '../../components/podcast/PodcastCard';

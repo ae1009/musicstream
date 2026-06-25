@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from '../../navigation/context';
 import { ArtworkImage } from '../../components/shared/ArtworkImage';
 import { ProgressBar } from '../../components/player/ProgressBar';
 import { PlaybackControls } from '../../components/player/PlaybackControls';

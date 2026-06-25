@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { AVPlaybackStatus } from 'expo-av';
 import { QueueItem, RepeatMode } from '../types/player';
 import {
   loadAndPlay, pauseAudio, resumeAudio, seekAudio, setAudioRate, stopAudio,
@@ -28,7 +27,7 @@ interface PlayerStore {
   setRepeat: (mode: RepeatMode) => void;
   toggleShuffle: () => void;
   addToQueue: (item: QueueItem) => void;
-  _onStatus: (status: AVPlaybackStatus) => void;
+  _onStatus: (status: any) => void;
 }
 
 export const usePlayerStore = create<PlayerStore>((set, get) => ({

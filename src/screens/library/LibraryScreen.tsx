@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, SafeAreaView, SectionList,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from '../../navigation/context';
 import { Ionicons } from '@expo/vector-icons';
 import { ArtworkImage } from '../../components/shared/ArtworkImage';
 import { useLibraryStore } from '../../stores/libraryStore';

@@ -12,9 +12,14 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#4CAF50"
       },
-      "permissions": ["android.permission.INTERNET"]
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.WAKE_LOCK"
+      ]
     },
-    "plugins": ["expo-sqlite"],
+    "plugins": ["expo-sqlite", "expo-audio"],
     "owner": "ae100977"
   }
 }

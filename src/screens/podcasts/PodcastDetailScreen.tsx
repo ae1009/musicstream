@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity,
   ActivityIndicator, StyleSheet, SafeAreaView, ScrollView,
 } from 'react-native';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '../../navigation/context';
 import { Ionicons } from '@expo/vector-icons';
 import { Podcast, Episode } from '../../types/podcast';
 import { ArtworkImage } from '../../components/shared/ArtworkImage';

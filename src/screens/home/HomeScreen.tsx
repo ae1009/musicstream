@@ -4,7 +4,7 @@ import {
   ActivityIndicator, StyleSheet, RefreshControl,
   SafeAreaView, TouchableOpacity, Image,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from '../../navigation/context';
 import { Track } from '../../types/track';
 import { Podcast } from '../../types/podcast';
 import { TrackCard } from '../../components/music/TrackCard';
