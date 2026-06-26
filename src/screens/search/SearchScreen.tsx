@@ -1,58 +1,38 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, FlatList, TouchableOpacity,
-  ActivityIndicator, StyleSheet, SafeAreaView, Alert,
+  ActivityIndicator, StyleSheet, SafeAreaView,
 } from 'react-native';
 import { useNavigation } from '../../navigation/context';
 import { Ionicons } from '@expo/vector-icons';
 import { TrackRow } from '../../components/music/TrackRow';
 import { PodcastCard } from '../../components/podcast/PodcastCard';
-import { YouTubeCard } from '../../components/youtube/YouTubeCard';
 import { useSearch } from '../../hooks/useSearch';
 import { colors, spacing, fontSizes, borderRadius } from '../../constants/theme';
 
-type Tab = 'music' | 'podcasts' | 'youtube';
+type Tab = 'music' | 'podcasts';
 
 export function SearchScreen() {
   const navigation = useNavigation<any>();
   const [activeTab, setActiveTab] = useState<Tab>('music');
-  const [youtubeAccepted, setYoutubeAccepted] = useState(false);
-
-  const { query, setQuery, results, loading } = useSearch(['music', 'podcasts', 'youtube']);
+  const { query, setQuery, results, loading } = useSearch(['music', 'podcasts']);
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'music', label: 'Música' },
     { key: 'podcasts', label: 'Podcasts' },
-    { key: 'youtube', label: 'YouTube' },
   ];
-
-  const handleYoutubeTab = () => {
-    if (!youtubeAccepted) {
-      Alert.alert(
-        'Contenido de YouTube',
-        'Este contenido proviene de YouTube a través de Invidious. Es una zona gris legal. ¿Continuar?',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Continuar', onPress: () => { setYoutubeAccepted(true); setActiveTab('youtube'); } },
-        ],
-      );
-    } else {
-      setActiveTab('youtube');
-    }
-  };
 
   const renderEmpty = () => (
     <View style={styles.empty}>
       <Ionicons name="search" size={48} color={colors.textMuted} />
       <Text style={styles.emptyText}>
-        {query ? 'Sin resultados' : 'Busca canciones, podcasts o videos'}
+        {query ? 'Sin resultados' : 'Busca canciones o podcasts'}
       </Text>
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Barra de búsqueda */}
       <View style={styles.searchBar}>
         <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
         <TextInput
@@ -62,7 +42,6 @@ export function SearchScreen() {
           value={query}
           onChangeText={setQuery}
           autoCorrect={false}
-          clearButtonMode="while-editing"
         />
         {query.length > 0 && (
           <TouchableOpacity onPress={() => setQuery('')}>
@@ -71,24 +50,20 @@ export function SearchScreen() {
         )}
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabs}>
         {TABS.map(({ key, label }) => (
           <TouchableOpacity
             key={key}
             style={[styles.tab, activeTab === key && styles.tabActive]}
-            onPress={key === 'youtube' ? handleYoutubeTab : () => setActiveTab(key)}
+            onPress={() => setActiveTab(key)}
           >
             <Text style={[styles.tabText, activeTab === key && styles.tabTextActive]}>{label}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Resultados */}
       {loading && query ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} />
-        </View>
+        <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
       ) : (
         <>
           {activeTab === 'music' && (
@@ -115,15 +90,6 @@ export function SearchScreen() {
               )}
               ListEmptyComponent={renderEmpty}
               contentContainerStyle={{ padding: spacing.md }}
-              showsVerticalScrollIndicator={false}
-            />
-          )}
-          {activeTab === 'youtube' && (
-            <FlatList
-              data={results.youtube}
-              keyExtractor={(v) => v.id}
-              renderItem={({ item }) => <YouTubeCard video={item} />}
-              ListEmptyComponent={renderEmpty}
               showsVerticalScrollIndicator={false}
             />
           )}
