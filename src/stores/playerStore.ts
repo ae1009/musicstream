@@ -98,7 +98,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   addToQueue: (item) => set((s) => ({ queue: [...s.queue, item] })),
 
   _onStatus: (status) => {
-    if (!status.isLoaded) return;
+    if (!status.isLoaded) { set({ isPlaying: false, isBuffering: false }); return; }
     const positionSec = (status.positionMillis ?? 0) / 1000;
     const durationSec = (status.durationMillis ?? 0) / 1000;
     set({
