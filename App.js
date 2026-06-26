@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   Modal, StatusBar, Platform, Dimensions,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
 
 // Height of Android software navigation bar (back/home/recents)
 const { height: SCREEN_H } = Dimensions.get('screen');
@@ -19,7 +18,7 @@ import { PodcastDetailScreen } from './src/screens/podcasts/PodcastDetailScreen'
 import { FullPlayerScreen } from './src/screens/player/FullPlayerScreen';
 import { MiniPlayer } from './src/components/player/MiniPlayer';
 import { usePlayerStore } from './src/stores/playerStore';
-import { setupAudio, AUDIO_HTML, registerAudioWebView, handleAudioMessage } from './src/services/audio/audioPlayer';
+import { setupAudio } from './src/services/audio/audioPlayer';
 import { initDatabase } from './src/services/storage/database';
 import { useLibraryStore } from './src/stores/libraryStore';
 import { colors, spacing, fontSizes } from './src/constants/theme';
@@ -32,7 +31,6 @@ const TABS = [
 ];
 
 export default function App() {
-  const audioWebViewRef = useRef(null);
   const [activeTab, setActiveTab] = useState('Home');
   const [podcastStack, setPodcastStack] = useState([]);
   const [routeParams, setRouteParams] = useState({});
@@ -97,16 +95,6 @@ export default function App() {
     <NavContext.Provider value={navValue}>
       <View style={styles.root}>
         <StatusBar backgroundColor={colors.primary} barStyle="light-content" translucent={false} />
-
-        {/* Invisible WebView for HTML5 audio playback */}
-        <WebView
-          ref={(ref) => { audioWebViewRef.current = ref; registerAudioWebView(ref); }}
-          source={{ html: AUDIO_HTML }}
-          onMessage={(e) => handleAudioMessage(e.nativeEvent.data)}
-          mediaPlaybackRequiresUserGesture={false}
-          allowsInlineMediaPlayback
-          style={{ width: 0, height: 0, position: 'absolute' }}
-        />
 
         <View style={styles.content}>{renderContent()}</View>
 
