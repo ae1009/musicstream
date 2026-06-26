@@ -10,12 +10,14 @@ function toTrack(t: any): Track {
   return {
     id: `jamendo:${t.id}`,
     source: 'jamendo',
-    title: t.name ?? t.title ?? 'Unknown',
-    artist: t.artist_name ?? t.artistName ?? 'Unknown Artist',
-    album: t.album_name ?? t.albumName,
+    title: t.name ?? 'Unknown',
+    artist: t.artist_name ?? 'Unknown Artist',
+    album: t.album_name,
     duration_s: t.duration ?? 0,
     artwork_url: t.image ?? t.album_image,
-    stream_url: t.audiodownload ?? t.audio ?? '',
+    // audio = direct streaming URL (works without licensed key)
+    // audiodownload = download URL (requires approved key, often empty)
+    stream_url: t.audio ?? t.audiodownload ?? '',
     license: t.license_ccurl,
   };
 }
@@ -25,7 +27,6 @@ async function fetchTracks(params: Record<string, any>): Promise<Track[]> {
     params: {
       client_id: CLIENT_ID,
       format: 'json',
-      audiodlformat: 'mp31',
       imagesize: 300,
       ...params,
     },
@@ -35,7 +36,7 @@ async function fetchTracks(params: Record<string, any>): Promise<Track[]> {
 
 export const musicApi = {
   getFeatured: (limit = 20) =>
-    fetchTracks({ limit, order: 'popularity_week', include: 'musicinfo' }),
+    fetchTracks({ limit, order: 'popularity_week' }),
 
   getTrending: (limit = 30, genre?: string) =>
     fetchTracks({ limit, order: 'popularity_month', ...(genre ? { tags: genre } : {}) }),

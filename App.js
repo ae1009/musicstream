@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Modal, StatusBar, Platform,
+  Modal, StatusBar, Platform, Dimensions,
 } from 'react-native';
+
+// Height of Android software navigation bar (back/home/recents)
+const { height: SCREEN_H } = Dimensions.get('screen');
+const { height: WINDOW_H } = Dimensions.get('window');
+const NAV_BAR_H = Math.max(0, SCREEN_H - WINDOW_H - (StatusBar.currentHeight ?? 0));
 import { Ionicons } from '@expo/vector-icons';
 import { NavContext } from './src/navigation/context';
 import { HomeScreen } from './src/screens/home/HomeScreen';
@@ -139,7 +144,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingTop: 8,
-    paddingBottom: Platform.OS === 'android' ? 10 : 20,
+    paddingBottom: Platform.OS === 'android' ? Math.max(10, NAV_BAR_H) : 20,
   },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tabLabel: { fontSize: fontSizes.xs, color: colors.textMuted, marginTop: 2 },
