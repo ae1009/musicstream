@@ -14,14 +14,11 @@
       },
       "permissions": [
         "android.permission.INTERNET",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "android.permission.WAKE_LOCK"
       ]
     },
     "plugins": [
       "expo-sqlite",
-      "expo-audio",
       [
         "expo-build-properties",
         {

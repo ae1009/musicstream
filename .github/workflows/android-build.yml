@@ -55,6 +55,12 @@ jobs:
           echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > android/app/debug.keystore
           echo "Keystore installed ($(wc -c < android/app/debug.keystore) bytes)"
 
+      - name: Add ProGuard keep rules for react-native-sound
+        run: |
+          cat >> android/app/proguard-rules.pro << 'EOF'
+          -keep class com.zmxv.RNSound.** { *; }
+          EOF
+
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 

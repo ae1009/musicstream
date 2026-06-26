@@ -1,71 +1,81 @@
-import { setAudioModeAsync, createAudioPlayer, AudioPlayer } from 'expo-audio';
+import Sound from 'react-native-sound';
 
-let player: AudioPlayer | null = null;
-let statusSub: ReturnType<AudioPlayer['addListener']> | null = null;
+Sound.setCategory('Playback');
 
-export async function setupAudio(): Promise<void> {
-  await setAudioModeAsync({
-    playsInSilentModeIOS: true,
-    staysActiveInBackground: true,
-    shouldDuckAndroid: true,
-    playThroughEarpieceAndroid: false,
-  } as any);
+let currentSound: Sound | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let isPlaying = false;
+
+function releaseAll() {
+  isPlaying = false;
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  if (currentSound) { currentSound.stop(); currentSound.release(); currentSound = null; }
 }
 
-export async function loadAndPlay(
-  url: string,
-  onStatus: (s: any) => void,
-): Promise<void> {
-  if (player) {
-    statusSub?.remove();
-    player.remove();
-    player = null;
-  }
+export async function setupAudio(): Promise<void> {
+  Sound.setCategory('Playback');
+}
 
-  player = createAudioPlayer({ uri: url });
+export async function loadAndPlay(url: string, onStatus: (s: any) => void): Promise<void> {
+  releaseAll();
 
-  statusSub = player.addListener('playbackStatusUpdate', (status: any) => {
-    const pos = status.currentTime ?? status.positionMillis ?? 0;
-    const dur = status.duration ?? status.durationMillis ?? 0;
-    const posMs = pos > 1000 ? pos : pos * 1000;
-    const durMs = dur > 1000 ? dur : dur * 1000;
+  const snd = new Sound(url, '', (err: any) => {
+    if (currentSound !== snd) return;
 
-    onStatus({
-      isLoaded: true,
-      isPlaying: status.playing ?? status.isPlaying ?? false,
-      isBuffering: status.buffering ?? status.isBuffering ?? false,
-      positionMillis: posMs,
-      durationMillis: durMs,
-      didJustFinish: status.ended ?? status.didJustFinish ?? false,
+    if (err) {
+      onStatus({ isLoaded: false, isPlaying: false, isBuffering: false, positionMillis: 0, durationMillis: 0, didJustFinish: false });
+      return;
+    }
+
+    const durMs = snd.getDuration() * 1000;
+    isPlaying = true;
+
+    snd.play((success: boolean) => {
+      if (currentSound !== snd) return;
+      isPlaying = false;
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      onStatus({ isLoaded: true, isPlaying: false, isBuffering: false, positionMillis: durMs, durationMillis: durMs, didJustFinish: success });
     });
+
+    pollTimer = setInterval(() => {
+      if (currentSound !== snd) return;
+      snd.getCurrentTime((seconds: number) => {
+        if (currentSound !== snd) return;
+        onStatus({ isLoaded: true, isPlaying, isBuffering: false, positionMillis: seconds * 1000, durationMillis: durMs, didJustFinish: false });
+      });
+    }, 500);
+
+    onStatus({ isLoaded: true, isPlaying: true, isBuffering: false, positionMillis: 0, durationMillis: durMs, didJustFinish: false });
   });
 
-  player.play();
+  currentSound = snd;
 }
 
 export async function pauseAudio(): Promise<void> {
-  player?.pause();
+  if (currentSound && isPlaying) {
+    currentSound.pause();
+    isPlaying = false;
+  }
 }
 
 export async function resumeAudio(): Promise<void> {
-  player?.play();
+  if (currentSound && !isPlaying) {
+    isPlaying = true;
+    currentSound.play((success: boolean) => {
+      isPlaying = false;
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    });
+  }
 }
 
 export async function seekAudio(positionMs: number): Promise<void> {
-  if (!player) return;
-  player.seekTo(positionMs / 1000);
+  currentSound?.setCurrentTime(positionMs / 1000);
 }
 
-export async function setAudioRate(rate: number): Promise<void> {
-  if (!player) return;
-  (player as any).rate = rate;
+export async function setAudioRate(_rate: number): Promise<void> {
+  // react-native-sound does not support setSpeed on Android — no-op
 }
 
 export async function stopAudio(): Promise<void> {
-  if (player) {
-    statusSub?.remove();
-    statusSub = null;
-    player.remove();
-    player = null;
-  }
+  releaseAll();
 }
