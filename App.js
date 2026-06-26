@@ -1,17 +1,147 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View, Text, TouchableOpacity, StyleSheet,
+  Modal, StatusBar, Platform,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { NavContext } from './src/navigation/context';
+import { HomeScreen } from './src/screens/home/HomeScreen';
+import { SearchScreen } from './src/screens/search/SearchScreen';
+import { LibraryScreen } from './src/screens/library/LibraryScreen';
+import { PodcastsScreen } from './src/screens/podcasts/PodcastsScreen';
+import { PodcastDetailScreen } from './src/screens/podcasts/PodcastDetailScreen';
+import { FullPlayerScreen } from './src/screens/player/FullPlayerScreen';
+import { MiniPlayer } from './src/components/player/MiniPlayer';
+import { usePlayerStore } from './src/stores/playerStore';
+import { setupAudio } from './src/services/audio/audioPlayer';
+import { initDatabase } from './src/services/storage/database';
+import { useLibraryStore } from './src/stores/libraryStore';
+import { colors, spacing, fontSizes } from './src/constants/theme';
+
+const TABS = [
+  { key: 'Home',     label: 'Inicio',   icon: 'home-outline',    iconActive: 'home' },
+  { key: 'Search',   label: 'Buscar',   icon: 'search-outline',  iconActive: 'search' },
+  { key: 'Library',  label: 'Librería', icon: 'library-outline', iconActive: 'library' },
+  { key: 'Podcasts', label: 'Podcasts', icon: 'mic-outline',     iconActive: 'mic' },
+];
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState('Home');
+  const [podcastStack, setPodcastStack] = useState([]);
+  const [routeParams, setRouteParams] = useState({});
+  const [showFullPlayer, setShowFullPlayer] = useState(false);
+  const currentItem = usePlayerStore((s) => s.currentItem);
+
+  useEffect(() => {
+    (async () => {
+      await setupAudio();
+      await initDatabase();
+      useLibraryStore.getState().loadAll();
+    })().catch(console.error);
+  }, []);
+
+  const navigate = useCallback((screen, params) => {
+    if (screen === 'FullPlayer') {
+      setShowFullPlayer(true);
+    } else if (screen === 'PodcastDetail') {
+      setRouteParams(params ?? {});
+      setPodcastStack(prev => [...prev, { screen, params }]);
+    } else if (TABS.find(t => t.key === screen)) {
+      setActiveTab(screen);
+      if (screen === 'Podcasts' && params?.screen === 'PodcastDetail') {
+        setRouteParams(params.params ?? {});
+        setPodcastStack([{ screen: 'PodcastDetail', params: params.params }]);
+      } else if (screen !== 'Podcasts') {
+        setPodcastStack([]);
+      }
+    }
+  }, []);
+
+  const goBack = useCallback(() => {
+    if (podcastStack.length > 0) {
+      setPodcastStack(prev => prev.slice(0, -1));
+    } else {
+      setActiveTab('Home');
+    }
+  }, [podcastStack]);
+
+  const navValue = {
+    navigate,
+    goBack,
+    push: navigate,
+    setOptions: () => {},
+    route: { params: routeParams },
+  };
+
+  const renderContent = () => {
+    if (activeTab === 'Podcasts' && podcastStack.length > 0) {
+      return <PodcastDetailScreen />;
+    }
+    switch (activeTab) {
+      case 'Home':     return <HomeScreen />;
+      case 'Search':   return <SearchScreen />;
+      case 'Library':  return <LibraryScreen />;
+      case 'Podcasts': return <PodcastsScreen />;
+      default:         return <HomeScreen />;
+    }
+  };
+
   return (
-    <View style={s.container}>
-      <Text style={s.title}>MusicStream</Text>
-      <Text style={s.sub}>Build 25 — expo-audio test</Text>
-    </View>
+    <NavContext.Provider value={navValue}>
+      <View style={styles.root}>
+        <StatusBar backgroundColor={colors.primary} barStyle="light-content" translucent={false} />
+
+        <View style={styles.content}>{renderContent()}</View>
+
+        {currentItem && <MiniPlayer />}
+
+        <View style={styles.tabBar}>
+          {TABS.map(tab => {
+            const active = activeTab === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={styles.tab}
+                onPress={() => {
+                  setActiveTab(tab.key);
+                  if (tab.key !== 'Podcasts') setPodcastStack([]);
+                }}
+              >
+                <Ionicons
+                  name={active ? tab.iconActive : tab.icon}
+                  size={24}
+                  color={active ? colors.primary : colors.textMuted}
+                />
+                <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Modal visible={showFullPlayer} animationType="slide" onRequestClose={() => setShowFullPlayer(false)}>
+          <NavContext.Provider value={{ ...navValue, goBack: () => setShowFullPlayer(false) }}>
+            <FullPlayerScreen />
+          </NavContext.Provider>
+        </Modal>
+      </View>
+    </NavContext.Provider>
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#4CAF50', justifyContent: 'center', alignItems: 'center' },
-  title: { color: '#fff', fontSize: 36, fontWeight: '900' },
-  sub: { color: '#E8F5E9', fontSize: 16, marginTop: 12 },
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.background },
+  content: { flex: 1 },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'android' ? 10 : 20,
+  },
+  tab: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  tabLabel: { fontSize: fontSizes.xs, color: colors.textMuted, marginTop: 2 },
+  tabLabelActive: { color: colors.primary, fontWeight: '600' },
 });

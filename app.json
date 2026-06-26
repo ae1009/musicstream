@@ -19,7 +19,7 @@
         "android.permission.WAKE_LOCK"
       ]
     },
-    "plugins": ["expo-sqlite", "expo-audio"],
+    "plugins": ["expo-sqlite"],
     "owner": "ae100977"
   }
 }
