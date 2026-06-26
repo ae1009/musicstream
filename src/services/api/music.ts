@@ -1,74 +1,52 @@
 import axios from 'axios';
 import { Track, Genre } from '../../types/track';
 
-const JAMENDO_BASE = 'https://api.jamendo.com/v3.0';
-const CLIENT_ID = 'b6747d04';
-
-const jamendo = axios.create({ baseURL: JAMENDO_BASE, timeout: 15000 });
+const deezer = axios.create({ baseURL: 'https://api.deezer.com', timeout: 15000 });
 
 function toTrack(t: any): Track {
   return {
-    id: `jamendo:${t.id}`,
-    source: 'jamendo',
-    title: t.name ?? 'Unknown',
-    artist: t.artist_name ?? 'Unknown Artist',
-    album: t.album_name,
-    duration_s: t.duration ?? 0,
-    artwork_url: t.image ?? t.album_image,
-    // audio = direct streaming URL (works without licensed key)
-    // audiodownload = download URL (requires approved key, often empty)
-    stream_url: t.audio ?? t.audiodownload ?? '',
-    license: t.license_ccurl,
+    id: `deezer:${t.id}`,
+    source: 'deezer',
+    title: t.title ?? 'Unknown',
+    artist: t.artist?.name ?? 'Unknown Artist',
+    album: t.album?.title,
+    duration_s: t.duration ?? 30,
+    artwork_url: t.album?.cover_medium ?? t.artist?.picture_medium,
+    stream_url: t.preview ?? '',
   };
 }
 
-async function fetchTracks(params: Record<string, any>): Promise<Track[]> {
-  const { data } = await jamendo.get('/tracks/', {
-    params: {
-      client_id: CLIENT_ID,
-      format: 'json',
-      imagesize: 300,
-      ...params,
-    },
-  });
-  return (data.results ?? []).map(toTrack).filter((t: Track) => t.stream_url);
+async function getChartTracks(limit: number): Promise<Track[]> {
+  const { data } = await deezer.get('/chart/0/tracks', { params: { limit } });
+  return (data.data ?? []).map(toTrack).filter((t: Track) => t.stream_url);
 }
 
 export const musicApi = {
-  getFeatured: (limit = 20) =>
-    fetchTracks({ limit, order: 'popularity_week' }),
+  getFeatured: (limit = 20) => getChartTracks(limit),
 
-  getTrending: (limit = 30, genre?: string) =>
-    fetchTracks({ limit, order: 'popularity_month', ...(genre ? { tags: genre } : {}) }),
+  getTrending: (limit = 30, _genre?: string) => getChartTracks(limit),
 
-  getNewReleases: (limit = 20) =>
-    fetchTracks({ limit, order: 'releasedate' }),
+  getNewReleases: (limit = 20) => getChartTracks(limit),
 
-  search: (q: string, genre?: string, page = 0, limit = 20) =>
-    fetchTracks({
-      limit, offset: page * limit,
-      namesearch: q,
-      ...(genre ? { tags: genre } : {}),
-    }),
+  search: async (q: string, _genre?: string, page = 0, limit = 20): Promise<Track[]> => {
+    const { data } = await deezer.get('/search', {
+      params: { q, limit, index: page * limit },
+    });
+    return (data.data ?? []).map(toTrack).filter((t: Track) => t.stream_url);
+  },
 
   getGenres: async (): Promise<Genre[]> => {
-    const { data } = await jamendo.get('/tags/', {
-      params: { client_id: CLIENT_ID, format: 'json', limit: 30 },
-    });
-    return (data.results ?? []).map((t: any) => ({
-      id: t.id ?? t.name,
-      name: t.name,
-      artwork_url: undefined,
-    }));
+    const { data } = await deezer.get('/genre');
+    return (data.data ?? [])
+      .filter((g: any) => g.id !== 0)
+      .map((g: any) => ({ id: String(g.id), name: g.name, artwork_url: g.picture_medium }));
   },
 
   getTrack: async (id: string): Promise<Track> => {
-    const jamId = id.replace('jamendo:', '');
-    const tracks = await fetchTracks({ id: jamId });
-    if (!tracks.length) throw new Error('Track not found');
-    return tracks[0];
+    const dzId = id.replace('deezer:', '');
+    const { data } = await deezer.get(`/track/${dzId}`);
+    return toTrack(data);
   },
 
-  getRadio: (genre: string, limit = 30) =>
-    fetchTracks({ limit, tags: genre, order: 'popularity_month' }),
+  getRadio: (genre: string, limit = 30) => getChartTracks(limit),
 };
