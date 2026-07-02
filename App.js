@@ -99,18 +99,20 @@ export default function App() {
         <StatusBar backgroundColor={colors.primary} barStyle="light-content" translucent={false} />
 
         {/* Audio WebView: real size but hidden off-screen (0x0 doesn't run JS on Android) */}
-        <WebView
-          ref={(ref) => { audioWebViewRef.current = ref; registerAudioWebView(ref); }}
-          source={{ html: AUDIO_HTML }}
-          onMessage={(e) => handleAudioMessage(e.nativeEvent.data)}
-          onLoad={() => setWebViewReady()}
-          mediaPlaybackRequiresUserGesture={false}
-          allowsInlineMediaPlayback
-          javaScriptEnabled
-          domStorageEnabled
-          originWhitelist={['*']}
-          style={{ position: 'absolute', width: 1, height: 1, top: -10, left: -10, opacity: 0 }}
-        />
+        <View style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}>
+          <WebView
+            ref={(ref) => { audioWebViewRef.current = ref; registerAudioWebView(ref); }}
+            source={{ html: AUDIO_HTML }}
+            onMessage={(e) => handleAudioMessage(e.nativeEvent.data)}
+            onLoad={() => setWebViewReady()}
+            mediaPlaybackRequiresUserGesture={false}
+            allowsInlineMediaPlayback
+            javaScriptEnabled
+            domStorageEnabled
+            originWhitelist={['*']}
+            style={{ width: 100, height: 100 }}
+          />
+        </View>
 
         <View style={styles.content}>{renderContent()}</View>
 
