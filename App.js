@@ -19,7 +19,7 @@ import { PodcastDetailScreen } from './src/screens/podcasts/PodcastDetailScreen'
 import { FullPlayerScreen } from './src/screens/player/FullPlayerScreen';
 import { MiniPlayer } from './src/components/player/MiniPlayer';
 import { usePlayerStore } from './src/stores/playerStore';
-import { setupAudio, AUDIO_HTML, registerAudioWebView, handleAudioMessage, setWebViewReady, getAudioDebug } from './src/services/audio/audioPlayer';
+import { setupAudio, registerAudioWebView, registerSourceSetter, handleAudioMessage, setWebViewReady, getAudioDebug } from './src/services/audio/audioPlayer';
 import { initDatabase } from './src/services/storage/database';
 import { useLibraryStore } from './src/stores/libraryStore';
 import { colors, spacing, fontSizes } from './src/constants/theme';
@@ -33,6 +33,7 @@ const TABS = [
 
 export default function App() {
   const audioWebViewRef = useRef(null);
+  const [webViewSource, setWebViewSource] = useState({ html: '<html><body></body></html>' });
   const [activeTab, setActiveTab] = useState('Home');
   const [podcastStack, setPodcastStack] = useState([]);
   const [routeParams, setRouteParams] = useState({});
@@ -41,6 +42,7 @@ export default function App() {
   const currentItem = usePlayerStore((s) => s.currentItem);
 
   useEffect(() => {
+    registerSourceSetter(setWebViewSource);
     (async () => {
       await setupAudio();
       await initDatabase();
@@ -99,17 +101,17 @@ export default function App() {
       <View style={styles.root}>
         <StatusBar backgroundColor={colors.primary} barStyle="light-content" translucent={false} />
 
-        {/* Audio WebView: must have real dimensions to run JS on Android.
-            opacity:0.01 makes it invisible but Android still renders and executes it. */}
+        {/* Audio WebView: source is swapped via React state to trigger native loadDataWithBaseURL,
+            bypassing Android's JS-initiated autoplay block. Must have real dimensions to render. */}
         <WebView
           ref={(ref) => { audioWebViewRef.current = ref; registerAudioWebView(ref); }}
-          source={{ html: AUDIO_HTML }}
+          source={webViewSource}
           onMessage={(e) => {
             handleAudioMessage(e.nativeEvent.data);
-            setAudioDebug('msg:' + e.nativeEvent.data.substring(0, 40));
+            setAudioDebug(e.nativeEvent.data.substring(0, 50));
           }}
-          onLoad={() => { setWebViewReady(); setAudioDebug('loaded'); }}
-          onError={(e) => setAudioDebug('wverr:' + e.nativeEvent.description)}
+          onLoad={() => setAudioDebug('loaded')}
+          onError={(e) => setAudioDebug('err:' + e.nativeEvent.description)}
           mediaPlaybackRequiresUserGesture={false}
           allowsInlineMediaPlayback
           javaScriptEnabled
