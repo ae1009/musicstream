@@ -1,26 +1,37 @@
-export const AUDIO_HTML = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width"></head><body>
-<audio id="a" playsinline></audio>
+export const AUDIO_HTML = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width"></head><body style="margin:0;background:transparent">
+<audio id="a" playsinline muted autoplay></audio>
 <script>
 var a=document.getElementById('a');
 var lastDur=0;
+var unmutePending=false;
 function post(obj){window.ReactNativeWebView.postMessage(JSON.stringify(obj));}
 a.addEventListener('durationchange',function(){if(a.duration&&!isNaN(a.duration))lastDur=a.duration;});
+a.addEventListener('canplay',function(){
+  if(unmutePending){ a.muted=false; a.volume=1; unmutePending=false; }
+  post({t:'ready',dur:isNaN(a.duration)?lastDur:a.duration});
+});
 a.addEventListener('timeupdate',function(){
   post({t:'p',pos:a.currentTime,dur:isNaN(a.duration)?lastDur:a.duration,paused:a.paused});
 });
 a.addEventListener('ended',function(){post({t:'e',dur:isNaN(a.duration)?lastDur:a.duration});});
-a.addEventListener('error',function(){post({t:'err',code:a.error?a.error.code:-1});});
-a.addEventListener('canplay',function(){post({t:'ready',dur:isNaN(a.duration)?lastDur:a.duration});});
+a.addEventListener('error',function(){
+  var code=a.error?a.error.code:-1;
+  var msg=a.error?a.error.message:'';
+  post({t:'err',code:code,msg:msg});
+});
 window.rnAudio=function(cmd,arg){
   switch(cmd){
     case 'load':
-      a.src=arg; a.muted=true; a.load();
-      a.play().then(function(){ a.muted=false; post({t:'playing'}); })
-              .catch(function(e){ post({t:'err',msg:e.toString()}); });
+      unmutePending=true;
+      a.muted=true;
+      a.volume=0;
+      a.src=arg;
+      a.load();
+      // Do NOT call play() — autoplay attribute handles it without user gesture
       break;
     case 'pause': a.pause(); break;
     case 'resume':
-      a.muted=false;
+      a.muted=false; a.volume=1;
       a.play().catch(function(e){ post({t:'err',msg:e.toString()}); });
       break;
     case 'seek': a.currentTime=parseFloat(arg); break;
