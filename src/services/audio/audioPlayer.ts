@@ -13,9 +13,16 @@ a.addEventListener('error',function(){post({t:'err',code:a.error?a.error.code:-1
 a.addEventListener('canplay',function(){post({t:'ready',dur:isNaN(a.duration)?lastDur:a.duration});});
 window.rnAudio=function(cmd,arg){
   switch(cmd){
-    case 'load': a.src=arg; a.load(); a.play().catch(function(){}); break;
+    case 'load':
+      a.src=arg; a.muted=true; a.load();
+      a.play().then(function(){ a.muted=false; post({t:'playing'}); })
+              .catch(function(e){ post({t:'err',msg:e.toString()}); });
+      break;
     case 'pause': a.pause(); break;
-    case 'resume': a.play().catch(function(){}); break;
+    case 'resume':
+      a.muted=false;
+      a.play().catch(function(e){ post({t:'err',msg:e.toString()}); });
+      break;
     case 'seek': a.currentTime=parseFloat(arg); break;
     case 'stop': a.pause(); a.src=''; break;
   }
@@ -26,6 +33,10 @@ let webViewRef: { injectJavaScript: (code: string) => void } | null = null;
 let webViewReady = false;
 let pendingLoad: { url: string } | null = null;
 let statusCb: ((s: any) => void) | null = null;
+
+export function getAudioDebug(): string {
+  return `ready=${webViewReady} pending=${!!pendingLoad}`;
+}
 
 export function registerAudioWebView(ref: any) {
   webViewRef = ref;
@@ -45,6 +56,10 @@ export function handleAudioMessage(data: string) {
     const msg = JSON.parse(data);
     if (!statusCb) return;
     switch (msg.t) {
+      case 'playing':
+        // play() promise resolved — audio started (muted→unmuted happens automatically)
+        statusCb({ isLoaded: true, isPlaying: true, isBuffering: false, positionMillis: 0, durationMillis: 0, didJustFinish: false });
+        break;
       case 'ready':
         statusCb({ isLoaded: true, isPlaying: true, isBuffering: false, positionMillis: 0, durationMillis: msg.dur * 1000, didJustFinish: false });
         break;

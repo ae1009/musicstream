@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Modal, StatusBar, Platform, Dimensions,
+  Modal, StatusBar, Platform, Dimensions, Alert,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 
@@ -19,7 +19,7 @@ import { PodcastDetailScreen } from './src/screens/podcasts/PodcastDetailScreen'
 import { FullPlayerScreen } from './src/screens/player/FullPlayerScreen';
 import { MiniPlayer } from './src/components/player/MiniPlayer';
 import { usePlayerStore } from './src/stores/playerStore';
-import { setupAudio, AUDIO_HTML, registerAudioWebView, handleAudioMessage, setWebViewReady } from './src/services/audio/audioPlayer';
+import { setupAudio, AUDIO_HTML, registerAudioWebView, handleAudioMessage, setWebViewReady, getAudioDebug } from './src/services/audio/audioPlayer';
 import { initDatabase } from './src/services/storage/database';
 import { useLibraryStore } from './src/stores/libraryStore';
 import { colors, spacing, fontSizes } from './src/constants/theme';
@@ -37,6 +37,7 @@ export default function App() {
   const [podcastStack, setPodcastStack] = useState([]);
   const [routeParams, setRouteParams] = useState({});
   const [showFullPlayer, setShowFullPlayer] = useState(false);
+  const [audioDebug, setAudioDebug] = useState('init');
   const currentItem = usePlayerStore((s) => s.currentItem);
 
   useEffect(() => {
@@ -98,23 +99,40 @@ export default function App() {
       <View style={styles.root}>
         <StatusBar backgroundColor={colors.primary} barStyle="light-content" translucent={false} />
 
-        {/* Audio WebView: real size but hidden off-screen (0x0 doesn't run JS on Android) */}
-        <View style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}>
-          <WebView
-            ref={(ref) => { audioWebViewRef.current = ref; registerAudioWebView(ref); }}
-            source={{ html: AUDIO_HTML }}
-            onMessage={(e) => handleAudioMessage(e.nativeEvent.data)}
-            onLoad={() => setWebViewReady()}
-            mediaPlaybackRequiresUserGesture={false}
-            allowsInlineMediaPlayback
-            javaScriptEnabled
-            domStorageEnabled
-            originWhitelist={['*']}
-            style={{ width: 100, height: 100 }}
-          />
-        </View>
+        {/* Audio WebView: must have real dimensions to run JS on Android.
+            opacity:0.01 makes it invisible but Android still renders and executes it. */}
+        <WebView
+          ref={(ref) => { audioWebViewRef.current = ref; registerAudioWebView(ref); }}
+          source={{ html: AUDIO_HTML }}
+          onMessage={(e) => {
+            handleAudioMessage(e.nativeEvent.data);
+            setAudioDebug('msg:' + e.nativeEvent.data.substring(0, 40));
+          }}
+          onLoad={() => { setWebViewReady(); setAudioDebug('loaded'); }}
+          onError={(e) => setAudioDebug('wverr:' + e.nativeEvent.description)}
+          mediaPlaybackRequiresUserGesture={false}
+          allowsInlineMediaPlayback
+          javaScriptEnabled
+          domStorageEnabled
+          originWhitelist={['*']}
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            right: 0,
+            width: 80,
+            height: 80,
+            opacity: 0.01,
+          }}
+        />
 
         <View style={styles.content}>{renderContent()}</View>
+
+        {/* Debug overlay — shows WebView audio status */}
+        <View style={{ backgroundColor: '#000', paddingHorizontal: 8, paddingVertical: 2 }} pointerEvents="none">
+          <Text style={{ color: '#0f0', fontSize: 10, fontFamily: 'monospace' }} numberOfLines={1}>
+            {audioDebug}
+          </Text>
+        </View>
 
         {currentItem && <MiniPlayer />}
 
