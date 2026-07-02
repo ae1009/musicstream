@@ -78,13 +78,22 @@ jobs:
           path: android/app/build/outputs/apk/release/*.apk
           retention-days: 7
 
+      - name: Show Gradle error summary
+        if: failure()
+        run: |
+          echo "## Gradle Build Error" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          grep -E "error:|FAILED|Exception|> Task|Caused by" /tmp/gradle-build.log | tail -40 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "### Last 50 lines of log:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -50 /tmp/gradle-build.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
       - name: Upload build logs on failure
         uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: build-logs
-          path: |
-            /tmp/gradle-build.log
-            android/app/build/reports/
-            android/app/build/outputs/logs/
+          path: /tmp/gradle-build.log
           retention-days: 3
