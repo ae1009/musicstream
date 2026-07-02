@@ -18,15 +18,7 @@
       ]
     },
     "plugins": [
-      "expo-sqlite",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "newArchEnabled": false
-          }
-        }
-      ]
+      "expo-sqlite"
     ],
     "owner": "ae100977"
   }
