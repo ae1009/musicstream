@@ -1,4 +1,3 @@
-// HTML5 audio via invisible WebView — avoids ExoPlayer/MediaPlayer device-specific crashes
 export const AUDIO_HTML = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width"></head><body>
 <audio id="a" playsinline></audio>
 <script>
@@ -21,9 +20,13 @@ window.rnAudio=function(cmd,arg){
     case 'stop': a.pause(); a.src=''; break;
   }
 };
+// Signal ready to React Native
+post({t:'init'});
 </script></body></html>`;
 
 let webViewRef: { injectJavaScript: (code: string) => void } | null = null;
+let webViewReady = false;
+let pendingLoad: { url: string } | null = null;
 let statusCb: ((s: any) => void) | null = null;
 
 export function registerAudioWebView(ref: any) {
@@ -31,9 +34,18 @@ export function registerAudioWebView(ref: any) {
 }
 
 export function handleAudioMessage(data: string) {
-  if (!statusCb) return;
   try {
     const msg = JSON.parse(data);
+    if (msg.t === 'init') {
+      webViewReady = true;
+      if (pendingLoad) {
+        const { url } = pendingLoad;
+        pendingLoad = null;
+        _doLoad(url);
+      }
+      return;
+    }
+    if (!statusCb) return;
     switch (msg.t) {
       case 'ready':
         statusCb({ isLoaded: true, isPlaying: true, isBuffering: false, positionMillis: 0, durationMillis: msg.dur * 1000, didJustFinish: false });
@@ -51,8 +63,12 @@ export function handleAudioMessage(data: string) {
   } catch (_) {}
 }
 
-function send(cmd: string, arg = '') {
-  webViewRef?.injectJavaScript(`window.rnAudio('${cmd}',${JSON.stringify(arg)});true;`);
+function inject(code: string) {
+  webViewRef?.injectJavaScript(code + ';true;');
+}
+
+function _doLoad(url: string) {
+  inject(`window.rnAudio('load',${JSON.stringify(url)})`);
 }
 
 export async function setupAudio(): Promise<void> {}
@@ -60,18 +76,15 @@ export async function setupAudio(): Promise<void> {}
 export async function loadAndPlay(url: string, onStatus: (s: any) => void): Promise<void> {
   statusCb = onStatus;
   onStatus({ isLoaded: true, isPlaying: true, isBuffering: true, positionMillis: 0, durationMillis: 0, didJustFinish: false });
-  send('load', url);
+  if (!webViewReady) {
+    pendingLoad = { url };
+    return;
+  }
+  _doLoad(url);
 }
 
-export async function pauseAudio(): Promise<void> { send('pause'); }
-
-export async function resumeAudio(): Promise<void> { send('resume'); }
-
-export async function seekAudio(positionMs: number): Promise<void> { send('seek', String(positionMs / 1000)); }
-
+export async function pauseAudio(): Promise<void> { inject(`window.rnAudio('pause','')`); }
+export async function resumeAudio(): Promise<void> { inject(`window.rnAudio('resume','')`); }
+export async function seekAudio(positionMs: number): Promise<void> { inject(`window.rnAudio('seek','${positionMs / 1000}')`); }
 export async function setAudioRate(_rate: number): Promise<void> {}
-
-export async function stopAudio(): Promise<void> {
-  statusCb = null;
-  send('stop');
-}
+export async function stopAudio(): Promise<void> { statusCb = null; inject(`window.rnAudio('stop','')`); }
