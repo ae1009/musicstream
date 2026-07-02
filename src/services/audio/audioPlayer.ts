@@ -20,8 +20,6 @@ window.rnAudio=function(cmd,arg){
     case 'stop': a.pause(); a.src=''; break;
   }
 };
-// Signal ready to React Native
-post({t:'init'});
 </script></body></html>`;
 
 let webViewRef: { injectJavaScript: (code: string) => void } | null = null;
@@ -33,18 +31,18 @@ export function registerAudioWebView(ref: any) {
   webViewRef = ref;
 }
 
+export function setWebViewReady() {
+  webViewReady = true;
+  if (pendingLoad) {
+    const { url } = pendingLoad;
+    pendingLoad = null;
+    _doLoad(url);
+  }
+}
+
 export function handleAudioMessage(data: string) {
   try {
     const msg = JSON.parse(data);
-    if (msg.t === 'init') {
-      webViewReady = true;
-      if (pendingLoad) {
-        const { url } = pendingLoad;
-        pendingLoad = null;
-        _doLoad(url);
-      }
-      return;
-    }
     if (!statusCb) return;
     switch (msg.t) {
       case 'ready':

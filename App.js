@@ -19,7 +19,7 @@ import { PodcastDetailScreen } from './src/screens/podcasts/PodcastDetailScreen'
 import { FullPlayerScreen } from './src/screens/player/FullPlayerScreen';
 import { MiniPlayer } from './src/components/player/MiniPlayer';
 import { usePlayerStore } from './src/stores/playerStore';
-import { setupAudio, AUDIO_HTML, registerAudioWebView, handleAudioMessage } from './src/services/audio/audioPlayer';
+import { setupAudio, AUDIO_HTML, registerAudioWebView, handleAudioMessage, setWebViewReady } from './src/services/audio/audioPlayer';
 import { initDatabase } from './src/services/storage/database';
 import { useLibraryStore } from './src/stores/libraryStore';
 import { colors, spacing, fontSizes } from './src/constants/theme';
@@ -103,6 +103,7 @@ export default function App() {
           ref={(ref) => { audioWebViewRef.current = ref; registerAudioWebView(ref); }}
           source={{ html: AUDIO_HTML }}
           onMessage={(e) => handleAudioMessage(e.nativeEvent.data)}
+          onLoad={() => setWebViewReady()}
           mediaPlaybackRequiresUserGesture={false}
           allowsInlineMediaPlayback
           javaScriptEnabled
