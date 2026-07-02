@@ -64,7 +64,8 @@ jobs:
           ./gradlew assembleRelease \
             -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
             --stacktrace \
-            --no-daemon
+            --no-daemon 2>&1 | tee /tmp/gradle-build.log
+          exit ${PIPESTATUS[0]}
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g"
           NODE_ENV: production
@@ -83,6 +84,7 @@ jobs:
         with:
           name: build-logs
           path: |
+            /tmp/gradle-build.log
             android/app/build/reports/
             android/app/build/outputs/logs/
           retention-days: 3
