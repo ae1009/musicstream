@@ -9,7 +9,11 @@ import { usePlayerStore } from '../../stores/playerStore';
 import { useLibraryStore } from '../../stores/libraryStore';
 import { colors, spacing, fontSizes } from '../../constants/theme';
 
-export function FullPlayerScreen() {
+interface Props {
+  onPlayBtnLayout?: (top: number, left: number, size: number) => void;
+}
+
+export function FullPlayerScreen({ onPlayBtnLayout }: Props) {
   const navigation = useNavigation();
   const { currentItem } = usePlayerStore();
   const { favoriteIds, toggleFavorite } = useLibraryStore();
@@ -64,7 +68,7 @@ export function FullPlayerScreen() {
 
       {/* Controls */}
       <View style={styles.controls}>
-        <PlaybackControls size="full" />
+        <PlaybackControls size="full" onPlayBtnLayout={onPlayBtnLayout} />
       </View>
     </SafeAreaView>
   );

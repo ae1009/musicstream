@@ -1,29 +1,32 @@
-import React from 'react';
-import { View, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useRef, useCallback } from 'react';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing } from '../../constants/theme';
 import { usePlayerStore } from '../../stores/playerStore';
 
 interface Props {
   size?: 'compact' | 'full';
+  onPlayBtnLayout?: (top: number, left: number, size: number) => void;
 }
 
-export function PlaybackControls({ size = 'full' }: Props) {
-  const { isPlaying, isBuffering, pause, resume, next, previous, repeatMode, setRepeat, shuffleMode, toggleShuffle } =
-    usePlayerStore();
+export function PlaybackControls({ size = 'full', onPlayBtnLayout }: Props) {
+  const { next, previous, repeatMode, setRepeat, shuffleMode, toggleShuffle } = usePlayerStore();
+  const playBtnRef = useRef<View>(null);
 
   const iconSize = size === 'full' ? 28 : 22;
   const playSize = size === 'full' ? 56 : 40;
+
+  const handlePlayBtnLayout = useCallback(() => {
+    playBtnRef.current?.measureInWindow((x, y, _w, _h) => {
+      onPlayBtnLayout?.(y, x, playSize);
+    });
+  }, [onPlayBtnLayout, playSize]);
 
   return (
     <View style={styles.row}>
       {size === 'full' && (
         <TouchableOpacity onPress={toggleShuffle} style={styles.btn}>
-          <Ionicons
-            name="shuffle"
-            size={22}
-            color={shuffleMode ? colors.primary : colors.textSecondary}
-          />
+          <Ionicons name="shuffle" size={22} color={shuffleMode ? colors.primary : colors.textSecondary} />
         </TouchableOpacity>
       )}
 
@@ -31,20 +34,12 @@ export function PlaybackControls({ size = 'full' }: Props) {
         <Ionicons name="play-skip-back" size={iconSize} color={colors.text} />
       </TouchableOpacity>
 
-      <TouchableOpacity
-        onPress={isPlaying ? pause : resume}
+      {/* Placeholder: WebView is absolutely positioned over this */}
+      <View
+        ref={playBtnRef}
+        onLayout={handlePlayBtnLayout}
         style={[styles.playBtn, { width: playSize, height: playSize, borderRadius: playSize / 2 }]}
-      >
-        {isBuffering ? (
-          <ActivityIndicator color={colors.background} />
-        ) : (
-          <Ionicons
-            name={isPlaying ? 'pause' : 'play'}
-            size={playSize * 0.45}
-            color={colors.background}
-          />
-        )}
-      </TouchableOpacity>
+      />
 
       <TouchableOpacity onPress={next} style={styles.btn}>
         <Ionicons name="play-skip-forward" size={iconSize} color={colors.text} />

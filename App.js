@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Modal, StatusBar, Platform, Dimensions, Alert,
+  StatusBar, Platform, Dimensions, BackHandler,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 
-// Height of Android software navigation bar (back/home/recents)
 const { height: SCREEN_H } = Dimensions.get('screen');
-const { height: WINDOW_H } = Dimensions.get('window');
+const { height: WINDOW_H, width: WINDOW_W } = Dimensions.get('window');
 const NAV_BAR_H = Math.max(0, SCREEN_H - WINDOW_H - (StatusBar.currentHeight ?? 0));
+
 import { Ionicons } from '@expo/vector-icons';
 import { NavContext } from './src/navigation/context';
 import { HomeScreen } from './src/screens/home/HomeScreen';
@@ -19,7 +19,10 @@ import { PodcastDetailScreen } from './src/screens/podcasts/PodcastDetailScreen'
 import { FullPlayerScreen } from './src/screens/player/FullPlayerScreen';
 import { MiniPlayer } from './src/components/player/MiniPlayer';
 import { usePlayerStore } from './src/stores/playerStore';
-import { setupAudio, registerAudioWebView, registerSourceSetter, handleAudioMessage, setWebViewReady, getAudioDebug } from './src/services/audio/audioPlayer';
+import {
+  setupAudio, registerAudioWebView, registerSourceSetter,
+  handleAudioMessage, setWebViewReady,
+} from './src/services/audio/audioPlayer';
 import { initDatabase } from './src/services/storage/database';
 import { useLibraryStore } from './src/stores/libraryStore';
 import { colors, spacing, fontSizes } from './src/constants/theme';
@@ -31,14 +34,19 @@ const TABS = [
   { key: 'Podcasts', label: 'Podcasts', icon: 'mic-outline',     iconActive: 'mic' },
 ];
 
+// WebView is the actual play button — positioned absolutely over whichever play button is visible.
+// This lets user touches land inside the WebView, so play() has a real gesture context.
+const HIDDEN_POS = { top: -200, left: 0, width: 44, height: 44 };
+
 export default function App() {
   const audioWebViewRef = useRef(null);
-  const [webViewSource, setWebViewSource] = useState({ html: '<html><body></body></html>' });
+  const [webViewSource, setWebViewSource] = useState({ html: '<html><body style="background:transparent"></body></html>' });
+  const [webViewPos, setWebViewPos] = useState(HIDDEN_POS);
+  const [audioDebug, setAudioDebug] = useState('');
   const [activeTab, setActiveTab] = useState('Home');
   const [podcastStack, setPodcastStack] = useState([]);
   const [routeParams, setRouteParams] = useState({});
   const [showFullPlayer, setShowFullPlayer] = useState(false);
-  const [audioDebug, setAudioDebug] = useState('init');
   const currentItem = usePlayerStore((s) => s.currentItem);
 
   useEffect(() => {
@@ -48,6 +56,25 @@ export default function App() {
       await initDatabase();
       useLibraryStore.getState().loadAll();
     })().catch(console.error);
+  }, []);
+
+  // Hide WebView when no song is loaded
+  useEffect(() => {
+    if (!currentItem) setWebViewPos(HIDDEN_POS);
+  }, [currentItem]);
+
+  // Android back button closes FullPlayer
+  useEffect(() => {
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (showFullPlayer) { setShowFullPlayer(false); return true; }
+      return false;
+    });
+    return () => handler.remove();
+  }, [showFullPlayer]);
+
+  // Callback: MiniPlayer or PlaybackControls reports play button absolute position
+  const onPlayBtnLayout = useCallback((top, left, size) => {
+    setWebViewPos({ top, left, width: size, height: size });
   }, []);
 
   const navigate = useCallback((screen, params) => {
@@ -84,9 +111,7 @@ export default function App() {
   };
 
   const renderContent = () => {
-    if (activeTab === 'Podcasts' && podcastStack.length > 0) {
-      return <PodcastDetailScreen />;
-    }
+    if (activeTab === 'Podcasts' && podcastStack.length > 0) return <PodcastDetailScreen />;
     switch (activeTab) {
       case 'Home':     return <HomeScreen />;
       case 'Search':   return <SearchScreen />;
@@ -101,42 +126,11 @@ export default function App() {
       <View style={styles.root}>
         <StatusBar backgroundColor={colors.primary} barStyle="light-content" translucent={false} />
 
-        {/* Audio WebView: source is swapped via React state to trigger native loadDataWithBaseURL,
-            bypassing Android's JS-initiated autoplay block. Must have real dimensions to render. */}
-        <WebView
-          ref={(ref) => { audioWebViewRef.current = ref; registerAudioWebView(ref); }}
-          source={webViewSource}
-          onMessage={(e) => {
-            handleAudioMessage(e.nativeEvent.data);
-            setAudioDebug(e.nativeEvent.data.substring(0, 50));
-          }}
-          onLoad={() => setAudioDebug('loaded')}
-          onError={(e) => setAudioDebug('err:' + e.nativeEvent.description)}
-          mediaPlaybackRequiresUserGesture={false}
-          allowsInlineMediaPlayback
-          javaScriptEnabled
-          domStorageEnabled
-          originWhitelist={['*']}
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            right: 0,
-            width: 80,
-            height: 80,
-            opacity: 0.01,
-          }}
-        />
-
         <View style={styles.content}>{renderContent()}</View>
 
-        {/* Debug overlay — shows WebView audio status */}
-        <View style={{ backgroundColor: '#000', paddingHorizontal: 8, paddingVertical: 2 }} pointerEvents="none">
-          <Text style={{ color: '#0f0', fontSize: 10, fontFamily: 'monospace' }} numberOfLines={1}>
-            {audioDebug}
-          </Text>
-        </View>
-
-        {currentItem && <MiniPlayer />}
+        {currentItem && (
+          <MiniPlayer onPlayBtnLayout={showFullPlayer ? undefined : onPlayBtnLayout} />
+        )}
 
         <View style={styles.tabBar}>
           {TABS.map(tab => {
@@ -163,11 +157,45 @@ export default function App() {
           })}
         </View>
 
-        <Modal visible={showFullPlayer} animationType="slide" onRequestClose={() => setShowFullPlayer(false)}>
-          <NavContext.Provider value={{ ...navValue, goBack: () => setShowFullPlayer(false) }}>
-            <FullPlayerScreen />
-          </NavContext.Provider>
-        </Modal>
+        {/* FullPlayer as absolute overlay — allows WebView (with higher elevation) to sit on top */}
+        {showFullPlayer && (
+          <View style={[StyleSheet.absoluteFillObject, styles.fullPlayerOverlay]}>
+            <NavContext.Provider value={{ ...navValue, goBack: () => setShowFullPlayer(false) }}>
+              <FullPlayerScreen onPlayBtnLayout={onPlayBtnLayout} />
+            </NavContext.Provider>
+          </View>
+        )}
+
+        {/* Audio WebView IS the play button — positioned over whichever play button is active.
+            Real user touches inside this WebView let play() succeed (bypass Android autoplay policy). */}
+        {currentItem && (
+          <WebView
+            ref={(ref) => { audioWebViewRef.current = ref; registerAudioWebView(ref); }}
+            source={webViewSource}
+            onMessage={(e) => {
+              handleAudioMessage(e.nativeEvent.data);
+              setAudioDebug(e.nativeEvent.data.substring(0, 60));
+            }}
+            onLoad={() => { setWebViewReady(); setAudioDebug('loaded'); }}
+            onError={(e) => setAudioDebug('wverr:' + e.nativeEvent.description)}
+            mediaPlaybackRequiresUserGesture={false}
+            allowsInlineMediaPlayback
+            javaScriptEnabled
+            domStorageEnabled
+            originWhitelist={['*']}
+            style={[styles.audioWebView, {
+              top: webViewPos.top,
+              left: webViewPos.left,
+              width: webViewPos.width,
+              height: webViewPos.height,
+            }]}
+          />
+        )}
+
+        {/* Debug bar */}
+        <View style={styles.debugBar} pointerEvents="none">
+          <Text style={styles.debugText} numberOfLines={1}>{audioDebug}</Text>
+        </View>
       </View>
     </NavContext.Provider>
   );
@@ -187,4 +215,26 @@ const styles = StyleSheet.create({
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tabLabel: { fontSize: fontSizes.xs, color: colors.textMuted, marginTop: 2 },
   tabLabelActive: { color: colors.primary, fontWeight: '600' },
+  fullPlayerOverlay: {
+    backgroundColor: colors.background,
+    zIndex: 50,
+    elevation: 10,
+  },
+  audioWebView: {
+    position: 'absolute',
+    zIndex: 100,
+    elevation: 20,
+    backgroundColor: 'transparent',
+  },
+  debugBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    zIndex: 999,
+  },
+  debugText: { color: '#0f0', fontSize: 9, fontFamily: 'monospace' },
 });

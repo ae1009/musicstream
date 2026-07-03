@@ -1,43 +1,55 @@
-// Audio player using WebView source-swap strategy.
-// Avoids audio.play() from injectedJS (blocked by Android autoplay policy).
-// Instead, each play/resume sets a new WebView source with <audio autoplay src="...">.
-// Android loads it natively via loadDataWithBaseURL, which is not subject to user-gesture policy.
+// Audio player: WebView IS the play button. play() is only called from user tap inside WebView.
+// load → sets src, shows play icon. Tap → play() with real gesture. Pause → rnPause() (no gesture needed).
 
 let webViewRef: { injectJavaScript: (code: string) => void } | null = null;
 let sourceSetter: ((src: { html: string }) => void) | null = null;
 let statusCb: ((s: any) => void) | null = null;
-let savedPosition = 0; // seconds, updated from timeupdate
+let savedPosition = 0;
 let currentUrl: string | null = null;
 
-export function registerAudioWebView(ref: any) {
-  webViewRef = ref;
-}
-
-export function registerSourceSetter(fn: (src: { html: string }) => void) {
-  sourceSetter = fn;
-}
-
-// No-op: ready state now tied to source change, not initial load
+export function registerAudioWebView(ref: any) { webViewRef = ref; }
+export function registerSourceSetter(fn: (src: { html: string }) => void) { sourceSetter = fn; }
 export function setWebViewReady() {}
+export function getAudioDebug() { return currentUrl ? 'url ok' : 'no url'; }
 
-function makeHtml(url: string, seekTo = 0): string {
+// iconColor: hex string for the SVG fill
+export function makePlayBtnHtml(url: string, seekTo = 0, iconSize = 28, iconColor = '%231A2E1A'): string {
   const safeUrl = url.replace(/"/g, '&quot;');
   const seekScript = seekTo > 0
-    ? `a.addEventListener('canplay',function f(){a.removeEventListener('canplay',f);a.currentTime=${seekTo};},{once:true});`
+    ? `a.addEventListener('canplay',function f(){a.removeEventListener('canplay',f);a.currentTime=${seekTo.toFixed(2)};},{once:true});`
     : '';
-  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width"></head><body>
-<audio id="a" playsinline autoplay src="${safeUrl}"></audio>
+  return `<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:transparent;overflow:hidden;display:flex;align-items:center;justify-content:center}
+#b{width:100%;height:100%;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0.08)}
+</style></head><body>
+<div id="b" onclick="tap()">
+  <svg id="pi" width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="${iconColor}"><path d="M8 5v14l11-7z"/></svg>
+  <svg id="si" width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="${iconColor}" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+</div>
+<audio id="a" src="${safeUrl}" playsinline></audio>
 <script>
-var a=document.getElementById('a');
+var a=document.getElementById('a'),pi=document.getElementById('pi'),si=document.getElementById('si');
 var lastDur=0;
 ${seekScript}
 function post(o){window.ReactNativeWebView.postMessage(JSON.stringify(o));}
+function upd(){pi.style.display=a.paused?'':'none';si.style.display=a.paused?'none':'';}
+function tap(){
+  if(a.paused){
+    a.play().then(function(){upd();post({t:'playtap'});})
+            .catch(function(e){post({t:'err',msg:e.toString()});});
+  } else {
+    a.pause();upd();post({t:'pausetap'});
+  }
+}
 a.addEventListener('durationchange',function(){if(a.duration&&!isNaN(a.duration))lastDur=a.duration;});
-a.addEventListener('canplay',function(){post({t:'ready',dur:isNaN(a.duration)?lastDur:a.duration});});
-a.addEventListener('timeupdate',function(){post({t:'p',pos:a.currentTime,dur:isNaN(a.duration)?lastDur:a.duration,paused:a.paused});});
-a.addEventListener('ended',function(){post({t:'e',dur:isNaN(a.duration)?lastDur:a.duration});});
+a.addEventListener('canplay',function(){upd();post({t:'ready',dur:isNaN(a.duration)?lastDur:a.duration});});
+a.addEventListener('timeupdate',function(){upd();post({t:'p',pos:a.currentTime,dur:isNaN(a.duration)?lastDur:a.duration,paused:a.paused});});
+a.addEventListener('ended',function(){upd();post({t:'e',dur:isNaN(a.duration)?lastDur:a.duration});});
 a.addEventListener('error',function(){post({t:'err',code:a.error?a.error.code:-1,msg:a.error?a.error.message:''});});
-window.rnPause=function(){a.pause();};
+window.rnPause=function(){a.pause();upd();};
 window.rnSeek=function(t){a.currentTime=t;};
 </script></body></html>`;
 }
@@ -45,12 +57,17 @@ window.rnSeek=function(t){a.currentTime=t;};
 export function handleAudioMessage(data: string) {
   try {
     const msg = JSON.parse(data);
-    // Always track position for resume-after-pause
-    if (msg.t === 'p' && msg.pos) savedPosition = msg.pos;
+    if (msg.t === 'p' && msg.pos != null) savedPosition = msg.pos;
     if (!statusCb) return;
     switch (msg.t) {
+      case 'playtap':
+        statusCb({ isLoaded: true, isPlaying: true, isBuffering: false, positionMillis: savedPosition * 1000, durationMillis: 0, didJustFinish: false });
+        break;
+      case 'pausetap':
+        statusCb({ isLoaded: true, isPlaying: false, isBuffering: false, positionMillis: savedPosition * 1000, durationMillis: 0, didJustFinish: false });
+        break;
       case 'ready':
-        statusCb({ isLoaded: true, isPlaying: true, isBuffering: false, positionMillis: savedPosition * 1000, durationMillis: msg.dur * 1000, didJustFinish: false });
+        statusCb({ isLoaded: true, isPlaying: false, isBuffering: false, positionMillis: savedPosition * 1000, durationMillis: msg.dur * 1000, didJustFinish: false });
         break;
       case 'p':
         statusCb({ isLoaded: true, isPlaying: !msg.paused, isBuffering: false, positionMillis: msg.pos * 1000, durationMillis: msg.dur * 1000, didJustFinish: false });
@@ -65,33 +82,30 @@ export function handleAudioMessage(data: string) {
   } catch (_) {}
 }
 
-export function getAudioDebug(): string {
-  return `url=${currentUrl ? 'set' : 'none'} pos=${savedPosition.toFixed(1)}`;
-}
-
 export async function setupAudio(): Promise<void> {}
 
 export async function loadAndPlay(url: string, onStatus: (s: any) => void): Promise<void> {
   statusCb = onStatus;
   currentUrl = url;
   savedPosition = 0;
-  onStatus({ isLoaded: true, isPlaying: true, isBuffering: true, positionMillis: 0, durationMillis: 0, didJustFinish: false });
-  sourceSetter?.({ html: makeHtml(url) });
+  onStatus({ isLoaded: true, isPlaying: false, isBuffering: true, positionMillis: 0, durationMillis: 0, didJustFinish: false });
+  sourceSetter?.({ html: makePlayBtnHtml(url) });
 }
 
 export async function pauseAudio(): Promise<void> {
   webViewRef?.injectJavaScript('window.rnPause();true;');
 }
 
+// Resume: reload HTML at saved position so user can tap play again
 export async function resumeAudio(): Promise<void> {
   if (currentUrl) {
-    sourceSetter?.({ html: makeHtml(currentUrl, savedPosition) });
+    sourceSetter?.({ html: makePlayBtnHtml(currentUrl, savedPosition) });
   }
 }
 
 export async function seekAudio(positionMs: number): Promise<void> {
   savedPosition = positionMs / 1000;
-  webViewRef?.injectJavaScript(`window.rnSeek(${savedPosition});true;`);
+  webViewRef?.injectJavaScript(`window.rnSeek(${savedPosition.toFixed(2)});true;`);
 }
 
 export async function setAudioRate(_rate: number): Promise<void> {}
@@ -100,5 +114,5 @@ export async function stopAudio(): Promise<void> {
   statusCb = null;
   currentUrl = null;
   savedPosition = 0;
-  sourceSetter?.({ html: '<html><body></body></html>' });
+  sourceSetter?.({ html: '<html><body style="background:transparent"></body></html>' });
 }
