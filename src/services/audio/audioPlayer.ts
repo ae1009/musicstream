@@ -12,22 +12,22 @@ export function registerSourceSetter(fn: (src: { html: string }) => void) { sour
 export function setWebViewReady() {}
 export function getAudioDebug() { return currentUrl ? 'url ok' : 'no url'; }
 
-// iconColor: hex string for the SVG fill
-export function makePlayBtnHtml(url: string, seekTo = 0, iconSize = 28, iconColor = '%231A2E1A'): string {
+export function makePlayBtnHtml(url: string, seekTo = 0): string {
   const safeUrl = url.replace(/"/g, '&quot;');
   const seekScript = seekTo > 0
     ? `a.addEventListener('canplay',function f(){a.removeEventListener('canplay',f);a.currentTime=${seekTo.toFixed(2)};},{once:true});`
     : '';
+  // White icon on dark circle — visible on any background. Matches FullPlayer button style.
   return `<!DOCTYPE html><html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;background:transparent;overflow:hidden;display:flex;align-items:center;justify-content:center}
-#b{width:100%;height:100%;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0.08)}
+#b{width:90%;height:90%;border-radius:50%;background:#1A2E1A;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:rgba(255,255,255,0.2)}
 </style></head><body>
 <div id="b" onclick="tap()">
-  <svg id="pi" width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="${iconColor}"><path d="M8 5v14l11-7z"/></svg>
-  <svg id="si" width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="${iconColor}" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+  <svg id="pi" width="42%" height="42%" viewBox="0 0 24 24" fill="#FFFFFF"><path d="M8 5v14l11-7z"/></svg>
+  <svg id="si" width="42%" height="42%" viewBox="0 0 24 24" fill="#FFFFFF" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
 </div>
 <audio id="a" src="${safeUrl}" playsinline></audio>
 <script>
@@ -89,7 +89,7 @@ export async function loadAndPlay(url: string, onStatus: (s: any) => void): Prom
   currentUrl = url;
   savedPosition = 0;
   onStatus({ isLoaded: true, isPlaying: false, isBuffering: true, positionMillis: 0, durationMillis: 0, didJustFinish: false });
-  sourceSetter?.({ html: makePlayBtnHtml(url) });
+  sourceSetter?.({ html: makePlayBtnHtml(url, 0) });
 }
 
 export async function pauseAudio(): Promise<void> {

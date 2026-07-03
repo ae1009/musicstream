@@ -1,14 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   StatusBar, Platform, Dimensions, BackHandler,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-
-const { height: SCREEN_H } = Dimensions.get('screen');
-const { height: WINDOW_H, width: WINDOW_W } = Dimensions.get('window');
-const NAV_BAR_H = Math.max(0, SCREEN_H - WINDOW_H - (StatusBar.currentHeight ?? 0));
-
 import { Ionicons } from '@expo/vector-icons';
 import { NavContext } from './src/navigation/context';
 import { HomeScreen } from './src/screens/home/HomeScreen';
@@ -25,7 +20,42 @@ import {
 } from './src/services/audio/audioPlayer';
 import { initDatabase } from './src/services/storage/database';
 import { useLibraryStore } from './src/stores/libraryStore';
-import { colors, spacing, fontSizes } from './src/constants/theme';
+import { colors, fontSizes } from './src/constants/theme';
+
+// ── Screen dimensions & navigation bar height ─────────────────────────────────
+const { height: SCREEN_H } = Dimensions.get('screen');
+const { height: WINDOW_H, width: WINDOW_W } = Dimensions.get('window');
+const NAV_BAR_H = Math.max(0, SCREEN_H - WINDOW_H - (StatusBar.currentHeight ?? 0));
+
+// ── Hardcoded play-button positions (no measureInWindow) ──────────────────────
+// Tab bar: paddingTop(8) + icon(24) + label(13) + paddingBottom(max(10,NAV_BAR_H))
+const TAB_BAR_H = 8 + 24 + 13 + Math.max(10, NAV_BAR_H);
+// MiniPlayer height: paddingVertical(8)*2 + artwork(44) = 60dp
+const MINI_PLAYER_H = 60;
+
+// Center of MiniPlayer play-button from screen bottom
+const MINI_BTN_BOTTOM = TAB_BAR_H + MINI_PLAYER_H / 2;   // center Y from bottom
+// Center of MiniPlayer play-button from screen right:
+//   paddingRight(16) + skip(32) + gap(8) + half-of-playBtn(16) = 72
+const MINI_BTN_RIGHT = 72;
+
+// 44×44 WebView centered over that button
+const MINI_WV = {
+  bottom: MINI_BTN_BOTTOM - 22,
+  right: MINI_BTN_RIGHT - 22,
+  width: 44,
+  height: 44,
+};
+
+// FullPlayer play-button: 56×56, centered horizontally, ~65% down the window
+const FULL_WV = {
+  top: Math.round(WINDOW_H * 0.655 - 28),
+  left: Math.round((WINDOW_W - 56) / 2),
+  width: 56,
+  height: 56,
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const TABS = [
   { key: 'Home',     label: 'Inicio',   icon: 'home-outline',    iconActive: 'home' },
@@ -34,19 +64,16 @@ const TABS = [
   { key: 'Podcasts', label: 'Podcasts', icon: 'mic-outline',     iconActive: 'mic' },
 ];
 
-// WebView is the actual play button — positioned absolutely over whichever play button is visible.
-// This lets user touches land inside the WebView, so play() has a real gesture context.
-const HIDDEN_POS = { top: -200, left: 0, width: 44, height: 44 };
-
 export default function App() {
-  const audioWebViewRef = useRef(null);
-  const [webViewSource, setWebViewSource] = useState({ html: '<html><body style="background:transparent"></body></html>' });
-  const [webViewPos, setWebViewPos] = useState(HIDDEN_POS);
-  const [audioDebug, setAudioDebug] = useState('');
+  const [webViewSource, setWebViewSource] = useState({
+    html: '<html><body style="background:transparent"></body></html>',
+  });
+  const [audioDebug, setAudioDebug] = useState('init');
   const [activeTab, setActiveTab] = useState('Home');
   const [podcastStack, setPodcastStack] = useState([]);
   const [routeParams, setRouteParams] = useState({});
   const [showFullPlayer, setShowFullPlayer] = useState(false);
+
   const currentItem = usePlayerStore((s) => s.currentItem);
 
   useEffect(() => {
@@ -58,24 +85,21 @@ export default function App() {
     })().catch(console.error);
   }, []);
 
-  // Hide WebView when no song is loaded
+  // Hardware back closes FullPlayer
   useEffect(() => {
-    if (!currentItem) setWebViewPos(HIDDEN_POS);
-  }, [currentItem]);
-
-  // Android back button closes FullPlayer
-  useEffect(() => {
-    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (showFullPlayer) { setShowFullPlayer(false); return true; }
       return false;
     });
-    return () => handler.remove();
+    return () => sub.remove();
   }, [showFullPlayer]);
 
-  // Callback: MiniPlayer or PlaybackControls reports play button absolute position
-  const onPlayBtnLayout = useCallback((top, left, size) => {
-    setWebViewPos({ top, left, width: size, height: size });
-  }, []);
+  // WebView position: hidden when no track, MiniPlayer pos, or FullPlayer pos
+  const wvStyle = useMemo(() => {
+    if (!currentItem) return styles.wvHidden;
+    if (showFullPlayer) return [styles.wvBase, FULL_WV];
+    return [styles.wvBase, MINI_WV];
+  }, [currentItem, showFullPlayer]);
 
   const navigate = useCallback((screen, params) => {
     if (screen === 'FullPlayer') {
@@ -102,13 +126,13 @@ export default function App() {
     }
   }, [podcastStack]);
 
-  const navValue = {
+  const navValue = useMemo(() => ({
     navigate,
     goBack,
     push: navigate,
     setOptions: () => {},
     route: { params: routeParams },
-  };
+  }), [navigate, goBack, routeParams]);
 
   const renderContent = () => {
     if (activeTab === 'Podcasts' && podcastStack.length > 0) return <PodcastDetailScreen />;
@@ -128,9 +152,7 @@ export default function App() {
 
         <View style={styles.content}>{renderContent()}</View>
 
-        {currentItem && (
-          <MiniPlayer onPlayBtnLayout={showFullPlayer ? undefined : onPlayBtnLayout} />
-        )}
+        {currentItem && <MiniPlayer />}
 
         <View style={styles.tabBar}>
           {TABS.map(tab => {
@@ -157,42 +179,36 @@ export default function App() {
           })}
         </View>
 
-        {/* FullPlayer as absolute overlay — allows WebView (with higher elevation) to sit on top */}
+        {/* FullPlayer: absolute overlay (not Modal) so WebView can sit above via elevation */}
         {showFullPlayer && (
           <View style={[StyleSheet.absoluteFillObject, styles.fullPlayerOverlay]}>
             <NavContext.Provider value={{ ...navValue, goBack: () => setShowFullPlayer(false) }}>
-              <FullPlayerScreen onPlayBtnLayout={onPlayBtnLayout} />
+              <FullPlayerScreen />
             </NavContext.Provider>
           </View>
         )}
 
-        {/* Audio WebView IS the play button — positioned over whichever play button is active.
-            Real user touches inside this WebView let play() succeed (bypass Android autoplay policy). */}
-        {currentItem && (
-          <WebView
-            ref={(ref) => { audioWebViewRef.current = ref; registerAudioWebView(ref); }}
-            source={webViewSource}
-            onMessage={(e) => {
-              handleAudioMessage(e.nativeEvent.data);
-              setAudioDebug(e.nativeEvent.data.substring(0, 60));
-            }}
-            onLoad={() => { setWebViewReady(); setAudioDebug('loaded'); }}
-            onError={(e) => setAudioDebug('wverr:' + e.nativeEvent.description)}
-            mediaPlaybackRequiresUserGesture={false}
-            allowsInlineMediaPlayback
-            javaScriptEnabled
-            domStorageEnabled
-            originWhitelist={['*']}
-            style={[styles.audioWebView, {
-              top: webViewPos.top,
-              left: webViewPos.left,
-              width: webViewPos.width,
-              height: webViewPos.height,
-            }]}
-          />
-        )}
+        {/* Audio WebView IS the play button.
+            elevation:20 puts it above FullPlayer overlay (elevation:10).
+            Position switches between MiniPlayer and FullPlayer button locations. */}
+        <WebView
+          ref={(ref) => registerAudioWebView(ref)}
+          source={webViewSource}
+          onMessage={(e) => {
+            handleAudioMessage(e.nativeEvent.data);
+            setAudioDebug(e.nativeEvent.data.substring(0, 80));
+          }}
+          onLoad={() => { setWebViewReady(); setAudioDebug('wv-loaded'); }}
+          onError={(e) => setAudioDebug('wv-err:' + e.nativeEvent.description)}
+          mediaPlaybackRequiresUserGesture={false}
+          allowsInlineMediaPlayback
+          javaScriptEnabled
+          domStorageEnabled
+          originWhitelist={['*']}
+          style={wvStyle}
+        />
 
-        {/* Debug bar */}
+        {/* Debug bar — tap-through (pointerEvents=none) */}
         <View style={styles.debugBar} pointerEvents="none">
           <Text style={styles.debugText} numberOfLines={1}>{audioDebug}</Text>
         </View>
@@ -215,26 +231,13 @@ const styles = StyleSheet.create({
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tabLabel: { fontSize: fontSizes.xs, color: colors.textMuted, marginTop: 2 },
   tabLabelActive: { color: colors.primary, fontWeight: '600' },
-  fullPlayerOverlay: {
-    backgroundColor: colors.background,
-    zIndex: 50,
-    elevation: 10,
-  },
-  audioWebView: {
-    position: 'absolute',
-    zIndex: 100,
-    elevation: 20,
-    backgroundColor: 'transparent',
-  },
+  fullPlayerOverlay: { backgroundColor: colors.background, zIndex: 50, elevation: 10 },
+  wvBase: { position: 'absolute', zIndex: 100, elevation: 20 },
+  wvHidden: { position: 'absolute', top: -400, left: 0, width: 44, height: 44 },
   debugBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    zIndex: 999,
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: 'rgba(0,0,0,0.8)', paddingHorizontal: 8, paddingVertical: 3,
+    zIndex: 999, elevation: 30,
   },
   debugText: { color: '#0f0', fontSize: 9, fontFamily: 'monospace' },
 });
