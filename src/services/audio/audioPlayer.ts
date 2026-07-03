@@ -39,15 +39,17 @@ function tap(){
   }
 }
 window.loadTrack=function(url,autoplay){
+  a.pause();
   a.src=url;
   a.load();
   upd();
   if(autoplay){
-    a.play().then(function(){upd();post({t:'playtap'});})
-            .catch(function(e){
-              upd();
-              post({t:'err',msg:'auto:'+e.toString()});
-            });
+    // Wait for canplay to avoid AbortError from calling play() before media is ready
+    a.addEventListener('canplay',function f(){
+      a.removeEventListener('canplay',f);
+      a.play().then(function(){upd();post({t:'playtap'});})
+              .catch(function(e){upd();post({t:'err',msg:'auto:'+e.toString()});});
+    },{once:true});
   }
 };
 a.addEventListener('durationchange',function(){if(a.duration&&!isNaN(a.duration))lastDur=a.duration;});

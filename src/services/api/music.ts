@@ -1,52 +1,72 @@
 import axios from 'axios';
 import { Track, Genre } from '../../types/track';
 
-const deezer = axios.create({ baseURL: 'https://api.deezer.com', timeout: 15000 });
+// Jamendo: 600k+ Creative Commons songs, full MP3 streams, no auth required
+const CLIENT_ID = 'b6747d04';
+const jamendo = axios.create({ baseURL: 'https://api.jamendo.com/v3.0', timeout: 15000 });
+
+const BASE = { client_id: CLIENT_ID, format: 'json', audioformat: 'mp31', include: 'musicinfo' };
 
 function toTrack(t: any): Track {
   return {
-    id: `deezer:${t.id}`,
-    source: 'deezer',
-    title: t.title ?? 'Unknown',
-    artist: t.artist?.name ?? 'Unknown Artist',
-    album: t.album?.title,
-    duration_s: t.duration ?? 30,
-    artwork_url: t.album?.cover_medium ?? t.artist?.picture_medium,
-    stream_url: t.preview ?? '',
+    id: `jamendo:${t.id}`,
+    source: 'jamendo',
+    title: t.name ?? 'Unknown',
+    artist: t.artist_name ?? 'Unknown Artist',
+    album: t.album_name,
+    duration_s: t.duration ?? 0,
+    artwork_url: t.album_image ?? t.image ?? '',
+    stream_url: t.audio ?? '',
   };
 }
 
-async function getChartTracks(limit: number): Promise<Track[]> {
-  const { data } = await deezer.get('/chart/0/tracks', { params: { limit } });
-  return (data.data ?? []).map(toTrack).filter((t: Track) => t.stream_url);
-}
-
 export const musicApi = {
-  getFeatured: (limit = 20) => getChartTracks(limit),
-
-  getTrending: (limit = 30, _genre?: string) => getChartTracks(limit),
-
-  getNewReleases: (limit = 20) => getChartTracks(limit),
-
-  search: async (q: string, _genre?: string, page = 0, limit = 20): Promise<Track[]> => {
-    const { data } = await deezer.get('/search', {
-      params: { q, limit, index: page * limit },
+  getFeatured: async (limit = 20): Promise<Track[]> => {
+    const { data } = await jamendo.get('/tracks/', {
+      params: { ...BASE, limit, order: 'popularity_month' },
     });
-    return (data.data ?? []).map(toTrack).filter((t: Track) => t.stream_url);
+    return (data.results ?? []).map(toTrack).filter((t: Track) => t.stream_url);
   },
 
-  getGenres: async (): Promise<Genre[]> => {
-    const { data } = await deezer.get('/genre');
-    return (data.data ?? [])
-      .filter((g: any) => g.id !== 0)
-      .map((g: any) => ({ id: String(g.id), name: g.name, artwork_url: g.picture_medium }));
+  getTrending: async (limit = 30, genre?: string): Promise<Track[]> => {
+    const params: any = { ...BASE, limit, order: 'popularity_total' };
+    if (genre) params.tags = genre.toLowerCase();
+    const { data } = await jamendo.get('/tracks/', { params });
+    return (data.results ?? []).map(toTrack).filter((t: Track) => t.stream_url);
   },
+
+  getNewReleases: async (limit = 20): Promise<Track[]> => {
+    const { data } = await jamendo.get('/tracks/', {
+      params: { ...BASE, limit, order: 'releasedate' },
+    });
+    return (data.results ?? []).map(toTrack).filter((t: Track) => t.stream_url);
+  },
+
+  search: async (q: string, genre?: string, page = 0, limit = 20): Promise<Track[]> => {
+    const params: any = { ...BASE, limit, offset: page * limit, search: q };
+    if (genre) params.tags = genre.toLowerCase();
+    const { data } = await jamendo.get('/tracks/', { params });
+    return (data.results ?? []).map(toTrack).filter((t: Track) => t.stream_url);
+  },
+
+  getGenres: async (): Promise<Genre[]> => [
+    { id: 'pop',        name: 'Pop',        artwork_url: '' },
+    { id: 'rock',       name: 'Rock',       artwork_url: '' },
+    { id: 'electronic', name: 'Electronic', artwork_url: '' },
+    { id: 'jazz',       name: 'Jazz',       artwork_url: '' },
+    { id: 'classical',  name: 'Clásica',    artwork_url: '' },
+    { id: 'hiphop',     name: 'Hip Hop',    artwork_url: '' },
+    { id: 'reggae',     name: 'Reggae',     artwork_url: '' },
+    { id: 'folk',       name: 'Folk',       artwork_url: '' },
+    { id: 'metal',      name: 'Metal',      artwork_url: '' },
+    { id: 'ambient',    name: 'Ambient',    artwork_url: '' },
+  ],
 
   getTrack: async (id: string): Promise<Track> => {
-    const dzId = id.replace('deezer:', '');
-    const { data } = await deezer.get(`/track/${dzId}`);
-    return toTrack(data);
+    const jId = id.replace('jamendo:', '');
+    const { data } = await jamendo.get('/tracks/', { params: { ...BASE, id: jId } });
+    return toTrack(data.results?.[0] ?? {});
   },
 
-  getRadio: (genre: string, limit = 30) => getChartTracks(limit),
+  getRadio: (genre: string, limit = 30) => musicApi.getTrending(limit, genre),
 };
