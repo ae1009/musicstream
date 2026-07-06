@@ -1,6 +1,6 @@
 export interface Track {
   id: string;           // "jamendo:12345" | "fma:6789"
-  source: 'jamendo' | 'fma' | 'deezer';
+  source: 'jamendo' | 'fma' | 'deezer' | 'archive';
   title: string;
   artist: string;
   album?: string;

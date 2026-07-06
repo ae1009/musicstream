@@ -1,6 +1,28 @@
 import axios from 'axios';
 import { Track, Genre } from '../../types/track';
 
+// Internet Archive — public domain & CC music, no auth needed
+async function searchArchive(q: string, limit = 5): Promise<Track[]> {
+  try {
+    const url =
+      `https://archive.org/advancedsearch.php?q=mediatype%3Aaudio+subject%3Amusic+title%3A(${encodeURIComponent(q)})` +
+      `&output=json&rows=${limit + 5}&fl[]=identifier,title,creator&sort[]=downloads+desc`;
+    const { data } = await axios.get(url, { timeout: 10000 });
+    return (data.response?.docs ?? []).slice(0, limit).map((item: any) => ({
+      id: `archive:${item.identifier}`,
+      source: 'archive' as const,
+      title: String(item.title ?? 'Unknown').trim(),
+      artist: String(item.creator ?? 'Unknown Artist'),
+      artwork_url: `https://archive.org/services/img/${item.identifier}`,
+      // Direct MP3 URL — works for most Archive.org audio items
+      stream_url: `https://archive.org/download/${item.identifier}/${item.identifier}.mp3`,
+      duration_s: 0,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 const CLIENT_ID = '556e8660';
 const jamendo = axios.create({ baseURL: 'https://api.jamendo.com/v3.0', timeout: 15000 });
 
@@ -47,8 +69,19 @@ export const musicApi = {
   getNewReleases: (limit = 20) =>
     getTracks({ datebetween: dateRange(90), orderby: 'releasedate_desc' }, limit),
 
-  search: (q: string, genre?: string, page = 0, limit = 20): Promise<Track[]> =>
-    getTracks({ search: q, ...(genre ? { tags: genre } : {}) }, limit, page * limit),
+  search: async (q: string, genre?: string, page = 0, limit = 20): Promise<Track[]> => {
+    const jamendoResults = await getTracks(
+      { search: q, ...(genre ? { tags: genre } : {}) },
+      limit,
+      page * limit,
+    );
+    // If Jamendo returns few results, complement with Internet Archive (public domain/CC)
+    if (jamendoResults.length < 5 && page === 0) {
+      const archiveResults = await searchArchive(q, limit - jamendoResults.length);
+      return [...jamendoResults, ...archiveResults];
+    }
+    return jamendoResults;
+  },
 
   getGenres: async (): Promise<Genre[]> => {
     const { data } = await jamendo.get('/tags/music/', {
