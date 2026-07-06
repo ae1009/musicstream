@@ -1,16 +1,110 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, FlatList, TouchableOpacity,
-  ActivityIndicator, StyleSheet, SafeAreaView,
+  ActivityIndicator, StyleSheet, SafeAreaView, Image,
 } from 'react-native';
 import { useNavigation } from '../../navigation/context';
 import { Ionicons } from '@expo/vector-icons';
 import { TrackRow } from '../../components/music/TrackRow';
 import { PodcastCard } from '../../components/podcast/PodcastCard';
 import { useSearch } from '../../hooks/useSearch';
+import { youtubeApi } from '../../services/api/youtube';
+import { YouTubeVideo } from '../../types/youtube';
+import { usePlayerStore } from '../../stores/playerStore';
 import { colors, spacing, fontSizes, borderRadius } from '../../constants/theme';
+import { formatDuration, formatViews as fmtViews } from '../../utils/format';
 
-type Tab = 'music' | 'podcasts';
+type Tab = 'music' | 'podcasts' | 'youtube';
+
+function YoutubeResults({ query }: { query: string }) {
+  const [results, setResults] = useState<YouTubeVideo[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const play = usePlayerStore((s) => s.play);
+
+  useEffect(() => {
+    if (!query) { setResults([]); return; }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const data = await youtubeApi.search(query, 20);
+        if (!cancelled) setResults(data);
+      } catch { if (!cancelled) setResults([]); }
+      finally { if (!cancelled) setLoading(false); }
+    }, 500);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [query]);
+
+  const handlePlay = async (video: YouTubeVideo) => {
+    if (loadingId) return;
+    setLoadingId(video.id);
+    try {
+      // Fetch audio-only URL — no video, saves data
+      const audioUrl = await youtubeApi.getAudioUrl(video.id);
+      await play({
+        id: `youtube:${video.id}`,
+        title: video.title,
+        artist: video.artist,
+        artwork_url: video.artwork_url,
+        stream_url: audioUrl,
+        duration_s: video.duration_s,
+        source: 'youtube',
+      });
+    } catch {
+      // silently fail — Invidious instance may be down
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  if (loading) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
+
+  if (!query || results.length === 0) {
+    return (
+      <View style={styles.empty}>
+        <Ionicons name="logo-youtube" size={48} color={colors.textMuted} />
+        <Text style={styles.emptyText}>{query ? 'Sin resultados en YouTube' : 'Busca canciones en YouTube (solo audio)'}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <FlatList
+      data={results}
+      keyExtractor={(v) => v.id}
+      showsVerticalScrollIndicator={false}
+      renderItem={({ item }) => {
+        const isLoading = loadingId === item.id;
+        return (
+          <TouchableOpacity
+            style={styles.videoRow}
+            onPress={() => handlePlay(item)}
+            activeOpacity={0.7}
+            disabled={!!loadingId}
+          >
+            <Image source={{ uri: item.artwork_url }} style={styles.videoThumb} resizeMode="cover" />
+            {item.duration_s ? (
+              <View style={styles.durationBadge}>
+                <Text style={styles.durationText}>{formatDuration(item.duration_s)}</Text>
+              </View>
+            ) : null}
+            <View style={styles.videoInfo}>
+              <Text style={styles.videoTitle} numberOfLines={2}>{item.title}</Text>
+              <Text style={styles.videoChannel} numberOfLines={1}>{item.artist}</Text>
+              {item.view_count ? (
+                <Text style={styles.videoViews}>{fmtViews(item.view_count)}</Text>
+              ) : null}
+            </View>
+            {isLoading
+              ? <ActivityIndicator size="small" color={colors.primary} />
+              : <Ionicons name="play-circle-outline" size={28} color={colors.textMuted} />}
+          </TouchableOpacity>
+        );
+      }}
+    />
+  );
+}
 
 export function SearchScreen() {
   const navigation = useNavigation<any>();
@@ -18,8 +112,9 @@ export function SearchScreen() {
   const { query, setQuery, results, loading } = useSearch(['music', 'podcasts']);
 
   const TABS: { key: Tab; label: string }[] = [
-    { key: 'music', label: 'Música' },
+    { key: 'music',    label: 'Música' },
     { key: 'podcasts', label: 'Podcasts' },
+    { key: 'youtube',  label: 'YouTube' },
   ];
 
   const renderEmpty = () => (
@@ -62,7 +157,9 @@ export function SearchScreen() {
         ))}
       </View>
 
-      {loading && query ? (
+      {activeTab === 'youtube' ? (
+        <YoutubeResults query={query} />
+      ) : loading && query ? (
         <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
       ) : (
         <>
@@ -131,4 +228,34 @@ const styles = StyleSheet.create({
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: spacing.md },
   emptyText: { color: colors.textSecondary, fontSize: fontSizes.md, textAlign: 'center' },
   grid: { gap: spacing.md },
+  // YouTube video row
+  videoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.surfaceVariant,
+  },
+  videoThumb: {
+    width: 120,
+    height: 68,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceVariant,
+  },
+  durationBadge: {
+    position: 'absolute',
+    bottom: spacing.sm + 4,
+    left: spacing.md + 84,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    borderRadius: 3,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  durationText: { color: '#fff', fontSize: 10, fontWeight: '600' },
+  videoInfo: { flex: 1, gap: 2 },
+  videoTitle: { color: colors.text, fontSize: fontSizes.sm, fontWeight: '600', lineHeight: 18 },
+  videoChannel: { color: colors.textSecondary, fontSize: fontSizes.xs },
+  videoViews: { color: colors.textMuted, fontSize: fontSizes.xs },
 });
